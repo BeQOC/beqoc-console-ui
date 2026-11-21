@@ -11,7 +11,8 @@ underlying libraries.
 
 - A `consoleui.Theme` with prebuilt [`lipgloss`](https://charm.land/lipgloss) styles
   for the roles `primary`, `accent`, `hint`, `strong`, `success`, `error`,
-  `warn`, `info` and `none`.
+  `warn`, `info` and `none`. The theme is its own domain; the root package is
+  the facade existing callers already use.
 - Status helpers for the `✔`, `✗`, `i` and `!` markers, plus `Hint` and `None`
   message variants for each status.
 - One palette with a light and a dark value per role. Colors are picked with
@@ -204,13 +205,21 @@ line-oriented mode. It needs no terminal and is the supported way to drive
 prompts from scripts and tests. `prompt.HuhTheme` exposes the same styling as a
 regular `huh.Theme` for callers that compose their own forms.
 
-## Packages
+## Project structure
 
-| Package | Purpose |
-| --- | --- |
-| `github.com/BeQOC/beqoc-console-ui` | Theme, palette, symbols, profiles. |
-| `.../spinner` | Print-style progress line. |
-| `.../prompt` | Themed huh forms. |
+| Path | Package | Purpose |
+| --- | --- | --- |
+| `consoleui.go`, `doc.go` | `consoleui` | Stable facade: `New`, options and theme re-exports. |
+| `theme/` | `theme` | Roles, palette, profiles and symbols. Imports nothing internal. |
+| `spinner/` | `spinner` | Print-style progress line over the theme domain. |
+| `prompt/` | `prompt` | Themed huh forms over the theme domain. |
+
+The domains are independently importable, for example
+`github.com/BeQOC/beqoc-console-ui/theme`. The root facade imports all three
+domains; the domains do not import the facade, so there is no cycle. The facade
+re-exports the theme surface with type aliases, so a `*consoleui.Theme` is the
+same type the spinner and prompt domains accept. It also names the `Spinner`
+and `Prompter` types; their constructors and options stay in their domains.
 
 ## Dependencies
 
@@ -232,11 +241,11 @@ gofmt -l .
 go test ./... -count=1
 ```
 
-Golden files live in `testdata/golden`. Refresh them after an intentional
+Golden files live in `theme/testdata/golden`. Refresh them after an intentional
 rendering change:
 
 ```sh
-go test . -run TestThemeGoldenByProfile -update
+go test ./theme -run TestThemeGoldenByProfile -update
 ```
 
 ## License

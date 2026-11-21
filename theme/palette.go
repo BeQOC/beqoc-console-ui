@@ -1,4 +1,4 @@
-package consoleui
+package theme
 
 // Color is a semantic color with a light and a dark variant. Both variants are
 // hex strings. When one variant is empty the other one is used, and when both

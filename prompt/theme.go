@@ -4,18 +4,18 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui/theme"
 )
 
 // HuhTheme adapts a consoleui theme to huh. The consoleui theme already
 // resolved its light or dark variant, so huh's own background flag is ignored
 // on purpose: prompts always agree with the surrounding output.
-func HuhTheme(theme *consoleui.Theme) huh.Theme {
-	if theme == nil {
-		theme = consoleui.New()
+func HuhTheme(consoleTheme *theme.Theme) huh.Theme {
+	if consoleTheme == nil {
+		consoleTheme = theme.New()
 	}
 	return huh.ThemeFunc(func(bool) *huh.Styles {
-		styles := theme.Styles()
+		styles := consoleTheme.Styles()
 
 		primary := styles.Primary.GetForeground()
 		accent := styles.Accent.GetForeground()
@@ -37,7 +37,7 @@ func HuhTheme(theme *consoleui.Theme) huh.Theme {
 		s.Focused.MultiSelectSelector = s.Focused.MultiSelectSelector.Foreground(accent)
 		s.Focused.SelectedOption = s.Focused.SelectedOption.Foreground(success)
 		s.Focused.SelectedPrefix = s.Focused.SelectedPrefix.Foreground(success)
-		s.Focused.SelectedPrefix = s.Focused.SelectedPrefix.SetString(theme.Symbols().Success + " ")
+		s.Focused.SelectedPrefix = s.Focused.SelectedPrefix.SetString(consoleTheme.Symbols().Success + " ")
 		s.Focused.UnselectedPrefix = s.Focused.UnselectedPrefix.Foreground(hint)
 		s.Focused.UnselectedOption = s.Focused.UnselectedOption.Foreground(hint)
 		s.Focused.FocusedButton = s.Focused.FocusedButton.

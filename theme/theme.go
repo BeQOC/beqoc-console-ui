@@ -1,11 +1,11 @@
-// Package consoleui gives BeQOC tools a small, consistent terminal vocabulary:
-// semantic color roles, status symbols, a light/dark palette and plain
-// rendering that degrades cleanly on every color profile.
+// Package theme defines BeQOC's semantic terminal vocabulary: color roles,
+// status symbols, a light/dark palette and plain rendering that degrades
+// cleanly on every color profile.
 //
-// The package is a thin presentation layer. It owns no global state, writes no
+// The package is a presentation domain. It owns no global state, writes no
 // files and contains no product logic. Consumers construct a [Theme] with
-// [New], keep it, and pass it to the optional spinner and prompt packages.
-package consoleui
+// [New], keep it, and pass it to the spinner and prompt domains.
+package theme
 
 import (
 	"image/color"

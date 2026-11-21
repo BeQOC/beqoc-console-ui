@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BeQOC/beqoc-console-ui"
 	"github.com/BeQOC/beqoc-console-ui/prompt"
+	"github.com/BeQOC/beqoc-console-ui/theme"
 )
 
 func newPrompter(t *testing.T, input string) (*prompt.Prompter, *bytes.Buffer) {
 	t.Helper()
 	var out bytes.Buffer
 	p := prompt.New(prompt.Options{
-		Theme:      consoleui.New(consoleui.WithProfile(consoleui.ProfileNone)),
+		Theme:      theme.New(theme.WithProfile(theme.ProfileNone)),
 		Input:      strings.NewReader(input),
 		Output:     &out,
 		Accessible: true,
@@ -145,7 +145,7 @@ func TestInputDefaultAppliesToAnEmptyAnswer(t *testing.T) {
 }
 
 func TestThemeUsesConsoleColors(t *testing.T) {
-	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor), consoleui.WithDark(true))
+	theme := theme.New(theme.WithProfile(theme.ProfileTrueColor), theme.WithDark(true))
 
 	styles := prompt.HuhTheme(theme).Theme(false)
 	if got, want := styles.Focused.Title.GetForeground(), theme.Styles().Primary.GetForeground(); !reflect.DeepEqual(got, want) {

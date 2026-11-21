@@ -1,4 +1,4 @@
-package consoleui
+package theme
 
 import (
 	"bytes"

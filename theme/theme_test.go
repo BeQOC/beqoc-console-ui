@@ -1,4 +1,4 @@
-package consoleui_test
+package theme_test
 
 import (
 	"bytes"
@@ -9,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/BeQOC/beqoc-console-ui"
+	themeapi "github.com/BeQOC/beqoc-console-ui/theme"
 )
 
 var updateGolden = flag.Bool("update", false, "rewrite golden files")
 
 // snapshot renders every public role and status helper for one theme. Using %q
 // keeps escape sequences visible and makes a failing diff readable.
-func snapshot(t *consoleui.Theme) string {
+func snapshot(t *themeapi.Theme) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "theme profile=%s dark=%t\n", t.Profile(), t.Dark())
 	fmt.Fprintf(&b, "primary: %q\n", t.Render(t.PrimaryStyle(), "server"))
@@ -41,17 +41,17 @@ func snapshot(t *consoleui.Theme) string {
 }
 
 func TestThemeGoldenByProfile(t *testing.T) {
-	profiles := map[string]consoleui.Profile{
-		"truecolor": consoleui.ProfileTrueColor,
-		"ansi256":   consoleui.ProfileANSI256,
-		"ansi":      consoleui.ProfileANSI,
-		"ascii":     consoleui.ProfileASCII,
-		"none":      consoleui.ProfileNone,
+	profiles := map[string]themeapi.Profile{
+		"truecolor": themeapi.ProfileTrueColor,
+		"ansi256":   themeapi.ProfileANSI256,
+		"ansi":      themeapi.ProfileANSI,
+		"ascii":     themeapi.ProfileASCII,
+		"none":      themeapi.ProfileNone,
 	}
 
 	for name, profile := range profiles {
 		t.Run(name, func(t *testing.T) {
-			theme := consoleui.New(consoleui.WithProfile(profile), consoleui.WithDark(true))
+			theme := themeapi.New(themeapi.WithProfile(profile), themeapi.WithDark(true))
 			got := snapshot(theme)
 
 			path := filepath.Join("testdata", "golden", name+".golden")
@@ -76,8 +76,8 @@ func TestThemeGoldenByProfile(t *testing.T) {
 }
 
 func TestLightAndDarkVariantsDiffer(t *testing.T) {
-	dark := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor), consoleui.WithDark(true))
-	light := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor), consoleui.WithDark(false))
+	dark := themeapi.New(themeapi.WithProfile(themeapi.ProfileTrueColor), themeapi.WithDark(true))
+	light := themeapi.New(themeapi.WithProfile(themeapi.ProfileTrueColor), themeapi.WithDark(false))
 
 	darkPrimary := dark.Render(dark.PrimaryStyle(), "server")
 	lightPrimary := light.Render(light.PrimaryStyle(), "server")
@@ -100,9 +100,9 @@ func TestAutoProfileIsPlainForNonTerminalOutput(t *testing.T) {
 	t.Setenv("NO_COLOR", "")
 	t.Setenv("TTY_FORCE", "")
 	t.Setenv("CLICOLOR_FORCE", "")
-	theme := consoleui.New(consoleui.WithOutput(&bytes.Buffer{}))
+	theme := themeapi.New(themeapi.WithOutput(&bytes.Buffer{}))
 
-	if theme.Profile() != consoleui.ProfileNone {
+	if theme.Profile() != themeapi.ProfileNone {
 		t.Fatalf("auto profile = %s, want none for a non-terminal writer", theme.Profile())
 	}
 	if got, want := theme.Success("ready"), "✔ ready"; got != want {
@@ -112,9 +112,9 @@ func TestAutoProfileIsPlainForNonTerminalOutput(t *testing.T) {
 
 func TestNoColorDisablesANSI(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	theme := consoleui.New(consoleui.WithOutput(os.Stdout))
+	theme := themeapi.New(themeapi.WithOutput(os.Stdout))
 
-	if theme.Profile() != consoleui.ProfileNone {
+	if theme.Profile() != themeapi.ProfileNone {
 		t.Fatalf("profile = %s, want none when NO_COLOR is set", theme.Profile())
 	}
 	for _, got := range []string{
@@ -131,8 +131,8 @@ func TestNoColorDisablesANSI(t *testing.T) {
 
 func TestExplicitProfileWinsOverEnvironment(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI))
-	if theme.Profile() != consoleui.ProfileANSI {
+	theme := themeapi.New(themeapi.WithProfile(themeapi.ProfileANSI))
+	if theme.Profile() != themeapi.ProfileANSI {
 		t.Fatalf("profile = %s, want ansi", theme.Profile())
 	}
 	if got := theme.Success("ready"); !strings.ContainsRune(got, '\x1b') {
@@ -141,9 +141,9 @@ func TestExplicitProfileWinsOverEnvironment(t *testing.T) {
 }
 
 func TestSymbolsAreConfigurable(t *testing.T) {
-	theme := consoleui.New(
-		consoleui.WithProfile(consoleui.ProfileNone),
-		consoleui.WithSymbols(consoleui.Symbols{Success: "OK", Error: "NO", Warn: "!", Info: "?"}),
+	theme := themeapi.New(
+		themeapi.WithProfile(themeapi.ProfileNone),
+		themeapi.WithSymbols(themeapi.Symbols{Success: "OK", Error: "NO", Warn: "!", Info: "?"}),
 	)
 
 	if got, want := theme.Success("ready"), "OK ready"; got != want {
@@ -164,19 +164,19 @@ func TestSymbolsAreConfigurable(t *testing.T) {
 }
 
 func TestEmptyPaletteFallsBackPerProfile(t *testing.T) {
-	plainProfiles := []consoleui.Profile{
-		consoleui.ProfileTrueColor,
-		consoleui.ProfileANSI256,
-		consoleui.ProfileASCII,
-		consoleui.ProfileNone,
+	plainProfiles := []themeapi.Profile{
+		themeapi.ProfileTrueColor,
+		themeapi.ProfileANSI256,
+		themeapi.ProfileASCII,
+		themeapi.ProfileNone,
 	}
 
 	for _, profile := range plainProfiles {
 		t.Run(profile.String(), func(t *testing.T) {
-			theme := consoleui.New(consoleui.WithProfile(profile), consoleui.WithPalette(consoleui.Palette{}))
+			theme := themeapi.New(themeapi.WithProfile(profile), themeapi.WithPalette(themeapi.Palette{}))
 
 			wantTitle := "BeQOC"
-			if profile != consoleui.ProfileNone {
+			if profile != themeapi.ProfileNone {
 				wantTitle = "\x1b[1mBeQOC\x1b[m"
 			}
 			cases := map[string]struct{ got, want string }{
@@ -196,7 +196,7 @@ func TestEmptyPaletteFallsBackPerProfile(t *testing.T) {
 	}
 
 	t.Run("ansi-keeps-semantic-slots", func(t *testing.T) {
-		theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI), consoleui.WithPalette(consoleui.Palette{}))
+		theme := themeapi.New(themeapi.WithProfile(themeapi.ProfileANSI), themeapi.WithPalette(themeapi.Palette{}))
 		if got, want := theme.Success("ready"), "\x1b[92m✔ ready\x1b[m"; got != want {
 			t.Errorf("ansi success = %q, want %q", got, want)
 		}
@@ -204,8 +204,8 @@ func TestEmptyPaletteFallsBackPerProfile(t *testing.T) {
 }
 
 func TestInvalidPaletteFallsBackPerProfile(t *testing.T) {
-	invalid := consoleui.Color{Light: "#zzzzzz", Dark: "#not-a-color"}
-	palette := consoleui.Palette{
+	invalid := themeapi.Color{Light: "#zzzzzz", Dark: "#not-a-color"}
+	palette := themeapi.Palette{
 		Primary: invalid,
 		Accent:  invalid,
 		Hint:    invalid,
@@ -215,24 +215,24 @@ func TestInvalidPaletteFallsBackPerProfile(t *testing.T) {
 		Info:    invalid,
 	}
 
-	profiles := []consoleui.Profile{
-		consoleui.ProfileTrueColor,
-		consoleui.ProfileANSI256,
-		consoleui.ProfileANSI,
-		consoleui.ProfileASCII,
-		consoleui.ProfileNone,
+	profiles := []themeapi.Profile{
+		themeapi.ProfileTrueColor,
+		themeapi.ProfileANSI256,
+		themeapi.ProfileANSI,
+		themeapi.ProfileASCII,
+		themeapi.ProfileNone,
 	}
 	for _, profile := range profiles {
-		theme := consoleui.New(consoleui.WithProfile(profile), consoleui.WithPalette(palette))
+		theme := themeapi.New(themeapi.WithProfile(profile), themeapi.WithPalette(palette))
 		got := theme.Success("ready")
 		if !strings.Contains(got, "ready") {
 			t.Errorf("profile %s lost message: %q", profile, got)
 		}
 		hasEscape := strings.ContainsRune(got, '\x1b')
-		if profile == consoleui.ProfileANSI && !hasEscape {
+		if profile == themeapi.ProfileANSI && !hasEscape {
 			t.Errorf("profile ansi should keep its semantic slot: %q", got)
 		}
-		if profile != consoleui.ProfileANSI && hasEscape {
+		if profile != themeapi.ProfileANSI && hasEscape {
 			t.Errorf("profile %s should render invalid colors plain: %q", profile, got)
 		}
 	}
@@ -240,7 +240,7 @@ func TestInvalidPaletteFallsBackPerProfile(t *testing.T) {
 
 func TestANSIProfileKeepsSemanticRolesDistinct(t *testing.T) {
 	for _, dark := range []bool{true, false} {
-		theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI), consoleui.WithDark(dark))
+		theme := themeapi.New(themeapi.WithProfile(themeapi.ProfileANSI), themeapi.WithDark(dark))
 		roles := map[string]string{
 			"primary": theme.Render(theme.PrimaryStyle(), "x"),
 			"accent":  theme.Render(theme.AccentStyle(), "x"),
@@ -263,8 +263,8 @@ func TestANSIProfileKeepsSemanticRolesDistinct(t *testing.T) {
 }
 
 func TestUnknownRoleRendersPlain(t *testing.T) {
-	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor))
-	got := theme.Render(theme.Style(consoleui.Role(99)), "plain")
+	theme := themeapi.New(themeapi.WithProfile(themeapi.ProfileTrueColor))
+	got := theme.Render(theme.Style(themeapi.Role(99)), "plain")
 	if got != "plain" {
 		t.Fatalf("unknown role = %q, want plain", got)
 	}

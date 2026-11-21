@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BeQOC/beqoc-console-ui"
 	"github.com/BeQOC/beqoc-console-ui/spinner"
+	"github.com/BeQOC/beqoc-console-ui/theme"
 )
 
-func plainTheme() *consoleui.Theme {
-	return consoleui.New(consoleui.WithProfile(consoleui.ProfileNone))
+func plainTheme() *theme.Theme {
+	return theme.New(theme.WithProfile(theme.ProfileNone))
 }
 
 func TestInteractiveFinalMessageReplacesTheFrame(t *testing.T) {
@@ -105,7 +105,7 @@ func TestStopClearsTheLineWithoutAStatus(t *testing.T) {
 
 func TestWarnAndFailUseTheirSymbols(t *testing.T) {
 	var out bytes.Buffer
-	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileNone))
+	theme := theme.New(theme.WithProfile(theme.ProfileNone))
 	warn := spinner.New("check", spinner.WithTheme(theme), spinner.WithWriter(&out), spinner.WithAnimation(false))
 	warn.Warn("slow")
 	fail := spinner.New("check", spinner.WithTheme(theme), spinner.WithWriter(&out), spinner.WithAnimation(false))
@@ -118,7 +118,7 @@ func TestWarnAndFailUseTheirSymbols(t *testing.T) {
 
 func TestFinalMessageIsColoredForATrueColorProfile(t *testing.T) {
 	var out bytes.Buffer
-	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor))
+	theme := theme.New(theme.WithProfile(theme.ProfileTrueColor))
 	sp := spinner.New("working", spinner.WithTheme(theme), spinner.WithWriter(&out), spinner.WithAnimation(false))
 
 	sp.Succeed("ready")

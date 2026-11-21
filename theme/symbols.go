@@ -1,4 +1,4 @@
-package consoleui
+package theme
 
 // Symbols are the markers that prefix status lines.
 type Symbols struct {
