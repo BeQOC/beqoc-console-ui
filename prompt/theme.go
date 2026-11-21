@@ -4,15 +4,15 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
-	console "github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui"
 )
 
-// Theme adapts a console theme to huh. The console theme already resolved its
-// light or dark variant, so huh's own background flag is ignored on purpose:
-// prompts always agree with the surrounding console output.
-func Theme(theme *console.Theme) huh.Theme {
+// HuhTheme adapts a consoleui theme to huh. The consoleui theme already
+// resolved its light or dark variant, so huh's own background flag is ignored
+// on purpose: prompts always agree with the surrounding output.
+func HuhTheme(theme *consoleui.Theme) huh.Theme {
 	if theme == nil {
-		theme = console.New()
+		theme = consoleui.New()
 	}
 	return huh.ThemeFunc(func(bool) *huh.Styles {
 		styles := theme.Styles()

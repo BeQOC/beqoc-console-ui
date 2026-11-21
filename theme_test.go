@@ -1,4 +1,4 @@
-package console_test
+package consoleui_test
 
 import (
 	"bytes"
@@ -9,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	console "github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui"
 )
 
 var updateGolden = flag.Bool("update", false, "rewrite golden files")
 
 // snapshot renders every public role and status helper for one theme. Using %q
 // keeps escape sequences visible and makes a failing diff readable.
-func snapshot(t *console.Theme) string {
+func snapshot(t *consoleui.Theme) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "theme profile=%s dark=%t\n", t.Profile(), t.Dark())
 	fmt.Fprintf(&b, "primary: %q\n", t.Render(t.PrimaryStyle(), "server"))
@@ -41,17 +41,17 @@ func snapshot(t *console.Theme) string {
 }
 
 func TestThemeGoldenByProfile(t *testing.T) {
-	profiles := map[string]console.Profile{
-		"truecolor": console.ProfileTrueColor,
-		"ansi256":   console.ProfileANSI256,
-		"ansi":      console.ProfileANSI,
-		"ascii":     console.ProfileASCII,
-		"none":      console.ProfileNone,
+	profiles := map[string]consoleui.Profile{
+		"truecolor": consoleui.ProfileTrueColor,
+		"ansi256":   consoleui.ProfileANSI256,
+		"ansi":      consoleui.ProfileANSI,
+		"ascii":     consoleui.ProfileASCII,
+		"none":      consoleui.ProfileNone,
 	}
 
 	for name, profile := range profiles {
 		t.Run(name, func(t *testing.T) {
-			theme := console.New(console.WithProfile(profile), console.WithDark(true))
+			theme := consoleui.New(consoleui.WithProfile(profile), consoleui.WithDark(true))
 			got := snapshot(theme)
 
 			path := filepath.Join("testdata", "golden", name+".golden")
@@ -76,8 +76,8 @@ func TestThemeGoldenByProfile(t *testing.T) {
 }
 
 func TestLightAndDarkVariantsDiffer(t *testing.T) {
-	dark := console.New(console.WithProfile(console.ProfileTrueColor), console.WithDark(true))
-	light := console.New(console.WithProfile(console.ProfileTrueColor), console.WithDark(false))
+	dark := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor), consoleui.WithDark(true))
+	light := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor), consoleui.WithDark(false))
 
 	darkPrimary := dark.Render(dark.PrimaryStyle(), "server")
 	lightPrimary := light.Render(light.PrimaryStyle(), "server")
@@ -100,9 +100,9 @@ func TestAutoProfileIsPlainForNonTerminalOutput(t *testing.T) {
 	t.Setenv("NO_COLOR", "")
 	t.Setenv("TTY_FORCE", "")
 	t.Setenv("CLICOLOR_FORCE", "")
-	theme := console.New(console.WithOutput(&bytes.Buffer{}))
+	theme := consoleui.New(consoleui.WithOutput(&bytes.Buffer{}))
 
-	if theme.Profile() != console.ProfileNone {
+	if theme.Profile() != consoleui.ProfileNone {
 		t.Fatalf("auto profile = %s, want none for a non-terminal writer", theme.Profile())
 	}
 	if got, want := theme.Success("ready"), "✔ ready"; got != want {
@@ -112,9 +112,9 @@ func TestAutoProfileIsPlainForNonTerminalOutput(t *testing.T) {
 
 func TestNoColorDisablesANSI(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	theme := console.New(console.WithOutput(os.Stdout))
+	theme := consoleui.New(consoleui.WithOutput(os.Stdout))
 
-	if theme.Profile() != console.ProfileNone {
+	if theme.Profile() != consoleui.ProfileNone {
 		t.Fatalf("profile = %s, want none when NO_COLOR is set", theme.Profile())
 	}
 	for _, got := range []string{
@@ -131,8 +131,8 @@ func TestNoColorDisablesANSI(t *testing.T) {
 
 func TestExplicitProfileWinsOverEnvironment(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	theme := console.New(console.WithProfile(console.ProfileANSI))
-	if theme.Profile() != console.ProfileANSI {
+	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI))
+	if theme.Profile() != consoleui.ProfileANSI {
 		t.Fatalf("profile = %s, want ansi", theme.Profile())
 	}
 	if got := theme.Success("ready"); !strings.ContainsRune(got, '\x1b') {
@@ -141,9 +141,9 @@ func TestExplicitProfileWinsOverEnvironment(t *testing.T) {
 }
 
 func TestSymbolsAreConfigurable(t *testing.T) {
-	theme := console.New(
-		console.WithProfile(console.ProfileNone),
-		console.WithSymbols(console.Symbols{Success: "OK", Error: "NO", Warn: "!", Info: "?"}),
+	theme := consoleui.New(
+		consoleui.WithProfile(consoleui.ProfileNone),
+		consoleui.WithSymbols(consoleui.Symbols{Success: "OK", Error: "NO", Warn: "!", Info: "?"}),
 	)
 
 	if got, want := theme.Success("ready"), "OK ready"; got != want {
@@ -163,46 +163,49 @@ func TestSymbolsAreConfigurable(t *testing.T) {
 	}
 }
 
-func TestEmptyPaletteRendersPlainTextOnEveryProfile(t *testing.T) {
-	profiles := []console.Profile{
-		console.ProfileTrueColor,
-		console.ProfileANSI256,
-		console.ProfileANSI,
-		console.ProfileASCII,
-		console.ProfileNone,
+func TestEmptyPaletteFallsBackPerProfile(t *testing.T) {
+	plainProfiles := []consoleui.Profile{
+		consoleui.ProfileTrueColor,
+		consoleui.ProfileANSI256,
+		consoleui.ProfileASCII,
+		consoleui.ProfileNone,
 	}
 
-	for _, profile := range profiles {
+	for _, profile := range plainProfiles {
 		t.Run(profile.String(), func(t *testing.T) {
-			theme := console.New(console.WithProfile(profile), console.WithPalette(console.Palette{}))
-			cases := map[string]string{
-				"title":        theme.Title("BeQOC"),
-				"success":      theme.Success("ready"),
-				"error hint":   theme.ErrorHint("failed"),
-				"warn none":    theme.WarnNone("careful"),
-				"info hint":    theme.InfoHint("note"),
-				"success hint": theme.SuccessHint("wrote files"),
+			theme := consoleui.New(consoleui.WithProfile(profile), consoleui.WithPalette(consoleui.Palette{}))
+
+			wantTitle := "BeQOC"
+			if profile != consoleui.ProfileNone {
+				wantTitle = "\x1b[1mBeQOC\x1b[m"
 			}
-			for name, got := range cases {
-				if got == "" {
-					t.Errorf("%s rendered empty output", name)
-				}
-				if profile == console.ProfileNone && strings.ContainsRune(got, '\x1b') {
-					t.Errorf("%s contains an escape sequence: %q", name, got)
-				}
+			cases := map[string]struct{ got, want string }{
+				"title":        {theme.Title("BeQOC"), wantTitle},
+				"success":      {theme.Success("ready"), "✔ ready"},
+				"error hint":   {theme.ErrorHint("failed"), "✗ failed"},
+				"warn none":    {theme.WarnNone("careful"), "! careful"},
+				"info hint":    {theme.InfoHint("note"), "i note"},
+				"success hint": {theme.SuccessHint("wrote files"), "✔ wrote files"},
 			}
-			if profile == console.ProfileNone {
-				if got, want := theme.Success("ready"), "✔ ready"; got != want {
-					t.Errorf("plain success = %q, want %q", got, want)
+			for name, c := range cases {
+				if c.got != c.want {
+					t.Errorf("%s = %q, want %q", name, c.got, c.want)
 				}
 			}
 		})
 	}
+
+	t.Run("ansi-keeps-semantic-slots", func(t *testing.T) {
+		theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI), consoleui.WithPalette(consoleui.Palette{}))
+		if got, want := theme.Success("ready"), "\x1b[92m✔ ready\x1b[m"; got != want {
+			t.Errorf("ansi success = %q, want %q", got, want)
+		}
+	})
 }
 
-func TestInvalidPaletteColorsNeverPanic(t *testing.T) {
-	invalid := console.Color{Light: "#zzzzzz", Dark: "#not-a-color"}
-	palette := console.Palette{
+func TestInvalidPaletteFallsBackPerProfile(t *testing.T) {
+	invalid := consoleui.Color{Light: "#zzzzzz", Dark: "#not-a-color"}
+	palette := consoleui.Palette{
 		Primary: invalid,
 		Accent:  invalid,
 		Hint:    invalid,
@@ -212,24 +215,32 @@ func TestInvalidPaletteColorsNeverPanic(t *testing.T) {
 		Info:    invalid,
 	}
 
-	profiles := []console.Profile{
-		console.ProfileTrueColor,
-		console.ProfileANSI256,
-		console.ProfileANSI,
-		console.ProfileASCII,
-		console.ProfileNone,
+	profiles := []consoleui.Profile{
+		consoleui.ProfileTrueColor,
+		consoleui.ProfileANSI256,
+		consoleui.ProfileANSI,
+		consoleui.ProfileASCII,
+		consoleui.ProfileNone,
 	}
 	for _, profile := range profiles {
-		theme := console.New(console.WithProfile(profile), console.WithPalette(palette))
-		if got := theme.Success("ready"); !strings.Contains(got, "ready") {
+		theme := consoleui.New(consoleui.WithProfile(profile), consoleui.WithPalette(palette))
+		got := theme.Success("ready")
+		if !strings.Contains(got, "ready") {
 			t.Errorf("profile %s lost message: %q", profile, got)
+		}
+		hasEscape := strings.ContainsRune(got, '\x1b')
+		if profile == consoleui.ProfileANSI && !hasEscape {
+			t.Errorf("profile ansi should keep its semantic slot: %q", got)
+		}
+		if profile != consoleui.ProfileANSI && hasEscape {
+			t.Errorf("profile %s should render invalid colors plain: %q", profile, got)
 		}
 	}
 }
 
 func TestANSIProfileKeepsSemanticRolesDistinct(t *testing.T) {
 	for _, dark := range []bool{true, false} {
-		theme := console.New(console.WithProfile(console.ProfileANSI), console.WithDark(dark))
+		theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI), consoleui.WithDark(dark))
 		roles := map[string]string{
 			"primary": theme.Render(theme.PrimaryStyle(), "x"),
 			"accent":  theme.Render(theme.AccentStyle(), "x"),
@@ -245,12 +256,15 @@ func TestANSIProfileKeepsSemanticRolesDistinct(t *testing.T) {
 		if roles["success"] == roles["error"] {
 			t.Errorf("dark=%t: success and error share the same ANSI color", dark)
 		}
+		if roles["accent"] == roles["info"] {
+			t.Errorf("dark=%t: accent and info share the same ANSI color: %q", dark, roles["accent"])
+		}
 	}
 }
 
 func TestUnknownRoleRendersPlain(t *testing.T) {
-	theme := console.New(console.WithProfile(console.ProfileTrueColor))
-	got := theme.Render(theme.Style(console.Role(99)), "plain")
+	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor))
+	got := theme.Render(theme.Style(consoleui.Role(99)), "plain")
 	if got != "plain" {
 		t.Fatalf("unknown role = %q, want plain", got)
 	}

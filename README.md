@@ -9,7 +9,7 @@ underlying libraries.
 
 ## What it is
 
-- A `console.Theme` with prebuilt [`lipgloss`](https://charm.land/lipgloss) styles
+- A `consoleui.Theme` with prebuilt [`lipgloss`](https://charm.land/lipgloss) styles
   for the roles `primary`, `accent`, `hint`, `strong`, `success`, `error`,
   `warn`, `info` and `none`.
 - Status helpers for the `✔`, `✗`, `i` and `!` markers, plus `Hint` and `None`
@@ -20,7 +20,7 @@ underlying libraries.
 - A spinner that animates one line and replaces it with a final status line.
 - A prompt wrapper for confirm, select and input questions, styled with the same
   theme and returning plain Go values.
-- Deterministic rendering: pass `console.WithProfile(...)` and the output is
+- Deterministic rendering: pass `consoleui.WithProfile(...)` and the output is
   stable, with no terminal query and no environment guesswork.
 
 ## What it is not
@@ -42,6 +42,13 @@ go get github.com/BeQOC/beqoc-console-ui
 
 Requires Go 1.25 or newer.
 
+The import path ends in `beqoc-console-ui`, while the package name is
+`consoleui`, so imports need no alias:
+
+```go
+import "github.com/BeQOC/beqoc-console-ui"
+```
+
 ## Theme and symbols
 
 ```go
@@ -50,11 +57,11 @@ package main
 import (
 	"fmt"
 
-	console "github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui"
 )
 
 func main() {
-	theme := console.New(console.WithDark(true))
+	theme := consoleui.New(consoleui.WithDark(true))
 
 	fmt.Println(theme.Title("BeQOC"))
 	fmt.Println(theme.Success("configuration valid"))
@@ -75,7 +82,7 @@ fmt.Println(theme.ErrorNone("command failed"))
 Symbols are configurable:
 
 ```go
-theme := console.New(console.WithSymbols(console.Symbols{
+theme := consoleui.New(consoleui.WithSymbols(consoleui.Symbols{
 	Success: "OK",
 	Error:   "NO",
 	Warn:    "!",
@@ -89,12 +96,12 @@ Styles are available through `theme.Styles()`, `theme.Style(role)` and the
 
 ## Color profiles
 
-`console.New` detects the profile from `os.Stdout` by default. Detection honors
+`consoleui.New` detects the profile from `os.Stdout` by default. Detection honors
 `NO_COLOR` and non-terminal output, which renders as plain text. To make output
 deterministic, choose a profile explicitly:
 
 ```go
-theme := console.New(console.WithProfile(console.ProfileANSI256))
+theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI256))
 ```
 
 | Profile | Behavior |
@@ -106,29 +113,32 @@ theme := console.New(console.WithProfile(console.ProfileANSI256))
 | `ProfileANSI256` | The 256-color palette. |
 | `ProfileTrueColor` | 24-bit colors. |
 
-At 16 colors, roles map to the basic slots they conventionally own rather than
-being converted by nearest RGB distance. This keeps warnings yellow instead of
-collapsing them into the error color. The palette therefore controls truecolor
-and 256-color output; the 16-color profile uses the standard basic slots.
+At 16 colors, roles map to distinct basic slots rather than being converted by
+nearest RGB distance: cyan primary, blue accent, magenta info, gray hint, green
+success, yellow warning and red error. This keeps warnings out of the error
+color and info out of the accent color. The palette therefore controls the
+truecolor and 256-color profiles; the 16-color profile ignores the palette and
+uses these standard slots.
 
 Light and dark variants are part of the palette:
 
 ```go
-light := console.New(console.WithDark(false))
-dark := console.New(console.WithDark(true))
+light := consoleui.New(consoleui.WithDark(false))
+dark := consoleui.New(consoleui.WithDark(true))
 ```
 
-Customize colors with `console.WithPalette`. Each role has a `Light` and a
+Customize colors with `consoleui.WithPalette`. Each role has a `Light` and a
 `Dark` hex value:
 
 ```go
-palette := console.DefaultPalette()
-palette.Primary = console.Color{Light: "#0E7490", Dark: "#22D3EE"}
-theme := console.New(console.WithPalette(palette))
+palette := consoleui.DefaultPalette()
+palette.Primary = consoleui.Color{Light: "#0E7490", Dark: "#22D3EE"}
+theme := consoleui.New(consoleui.WithPalette(palette))
 ```
 
-Rendering is fail-safe: an empty or invalid color renders without color and
-never panics, on any profile.
+Rendering is fail-safe: an empty or invalid color renders without color on the
+profiles that use the palette, and never panics. `ProfileANSI` ignores the
+palette and always uses its semantic basic slots.
 
 ## Spinner
 
@@ -150,11 +160,12 @@ sp.Update("Installing packages")
 sp.Succeed()
 ```
 
-The spinner is implemented as a small `lipgloss` frame loop rather than a
-Bubble Tea program. A spinner needs one animated line and an in-place final
-message, so a single ticker goroutine is enough; it stays usable from plain
-commands and does not take over standard input. When the writer is not a
-terminal (or `TERM=dumb`), it does not animate and only prints the final line.
+The spinner is implemented as a single `time.Ticker` goroutine that draws
+frames with `lipgloss`, rather than a Bubble Tea program. A spinner needs one
+animated line and an in-place final message, so one ticker is enough; it stays
+usable from plain commands and does not take over standard input. When the
+writer is not a terminal (or `TERM=dumb`), it does not animate and only prints
+the final line.
 
 ## Prompts
 
@@ -162,7 +173,7 @@ terminal (or `TERM=dumb`), it does not animate and only prints the final line.
 p := prompt.New(prompt.Options{Theme: theme})
 
 ok, err := p.Confirm(ctx, prompt.ConfirmOptions{
-	Title: "Apply the plan?",
+	Title: "Apply these changes?",
 })
 if err != nil {
 	return err
@@ -190,7 +201,7 @@ Questions return plain values and errors; callers own retries and decisions.
 
 Pass `Accessible: true` together with `Input` and `Output` to use huh's
 line-oriented mode. It needs no terminal and is the supported way to drive
-prompts from scripts and tests. `prompt.Theme` exposes the same styling as a
+prompts from scripts and tests. `prompt.HuhTheme` exposes the same styling as a
 regular `huh.Theme` for callers that compose their own forms.
 
 ## Packages

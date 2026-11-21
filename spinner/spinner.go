@@ -16,7 +16,7 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
-	console "github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui"
 )
 
 // DefaultFrames returns a copy of the braille frame set.
@@ -31,7 +31,7 @@ const DefaultInterval = 80 * time.Millisecond
 type Option func(*config)
 
 type config struct {
-	theme     *console.Theme
+	theme     *consoleui.Theme
 	writer    io.Writer
 	frames    []string
 	interval  time.Duration
@@ -39,7 +39,7 @@ type config struct {
 }
 
 // WithTheme sets the theme used for frames and final messages.
-func WithTheme(theme *console.Theme) Option {
+func WithTheme(theme *consoleui.Theme) Option {
 	return func(c *config) {
 		if theme != nil {
 			c.theme = theme
@@ -85,7 +85,7 @@ func WithAnimation(enabled bool) Option {
 // Spinner is a single-line progress indicator. Start it, update its text while
 // work runs, then finish it with one of Succeed, Fail, Warn or Info.
 type Spinner struct {
-	theme    *console.Theme
+	theme    *consoleui.Theme
 	writer   io.Writer
 	frames   []string
 	interval time.Duration
@@ -113,7 +113,7 @@ func New(text string, opts ...Option) *Spinner {
 		}
 	}
 	if cfg.theme == nil {
-		cfg.theme = console.New(console.WithOutput(cfg.writer))
+		cfg.theme = consoleui.New(consoleui.WithOutput(cfg.writer))
 	}
 	if cfg.writer == nil {
 		cfg.writer = os.Stdout

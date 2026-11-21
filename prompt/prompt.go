@@ -12,7 +12,7 @@ import (
 
 	"charm.land/huh/v2"
 
-	console "github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui"
 )
 
 // ConfirmOptions describes a yes/no question.
@@ -50,7 +50,7 @@ type SelectOptions[T comparable] struct {
 
 // Prompter runs forms with a fixed theme and input/output pair.
 type Prompter struct {
-	theme      *console.Theme
+	theme      *consoleui.Theme
 	input      io.Reader
 	output     io.Writer
 	accessible bool
@@ -59,7 +59,7 @@ type Prompter struct {
 // Options configure a [Prompter].
 type Options struct {
 	// Theme styles the forms. A default theme is used when nil.
-	Theme *console.Theme
+	Theme *consoleui.Theme
 	// Input supplies answers. Accessibility mode reads one line per answer;
 	// interactive mode reads terminal keys.
 	Input io.Reader
@@ -74,7 +74,7 @@ type Options struct {
 func New(opts Options) *Prompter {
 	theme := opts.Theme
 	if theme == nil {
-		theme = console.New(console.WithOutput(opts.Output))
+		theme = consoleui.New(consoleui.WithOutput(opts.Output))
 	}
 	return &Prompter{
 		theme:      theme,
@@ -85,7 +85,7 @@ func New(opts Options) *Prompter {
 }
 
 // Theme returns the prompter theme.
-func (p *Prompter) Theme() *console.Theme {
+func (p *Prompter) Theme() *consoleui.Theme {
 	return p.theme
 }
 
@@ -161,7 +161,7 @@ func Select[T comparable](ctx context.Context, p *Prompter, opts SelectOptions[T
 
 func (p *Prompter) run(ctx context.Context, field huh.Field) error {
 	form := huh.NewForm(huh.NewGroup(field)).
-		WithTheme(Theme(p.theme)).
+		WithTheme(HuhTheme(p.theme)).
 		WithAccessible(p.accessible)
 	if p.input != nil {
 		form.WithInput(p.input)

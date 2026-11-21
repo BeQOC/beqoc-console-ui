@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	console "github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui"
 	"github.com/BeQOC/beqoc-console-ui/prompt"
 )
 
@@ -15,7 +15,7 @@ func newPrompter(t *testing.T, input string) (*prompt.Prompter, *bytes.Buffer) {
 	t.Helper()
 	var out bytes.Buffer
 	p := prompt.New(prompt.Options{
-		Theme:      console.New(console.WithProfile(console.ProfileNone)),
+		Theme:      consoleui.New(consoleui.WithProfile(consoleui.ProfileNone)),
 		Input:      strings.NewReader(input),
 		Output:     &out,
 		Accessible: true,
@@ -145,9 +145,9 @@ func TestInputDefaultAppliesToAnEmptyAnswer(t *testing.T) {
 }
 
 func TestThemeUsesConsoleColors(t *testing.T) {
-	theme := console.New(console.WithProfile(console.ProfileTrueColor), console.WithDark(true))
+	theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileTrueColor), consoleui.WithDark(true))
 
-	styles := prompt.Theme(theme).Theme(false)
+	styles := prompt.HuhTheme(theme).Theme(false)
 	if got, want := styles.Focused.Title.GetForeground(), theme.Styles().Primary.GetForeground(); !reflect.DeepEqual(got, want) {
 		t.Errorf("title foreground = %v, want %v", got, want)
 	}
@@ -160,7 +160,7 @@ func TestThemeUsesConsoleColors(t *testing.T) {
 }
 
 func TestNilThemeFallsBackToDefault(t *testing.T) {
-	styles := prompt.Theme(nil).Theme(true)
+	styles := prompt.HuhTheme(nil).Theme(true)
 	if styles == nil {
 		t.Fatal("Theme(nil) returned nil styles")
 	}

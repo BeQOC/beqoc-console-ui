@@ -1,15 +1,15 @@
-package console_test
+package consoleui_test
 
 import (
 	"fmt"
 
-	console "github.com/BeQOC/beqoc-console-ui"
+	"github.com/BeQOC/beqoc-console-ui"
 )
 
 func ExampleNew() {
-	theme := console.New(
-		console.WithProfile(console.ProfileNone),
-		console.WithDark(true),
+	theme := consoleui.New(
+		consoleui.WithProfile(consoleui.ProfileNone),
+		consoleui.WithDark(true),
 	)
 
 	fmt.Println(theme.Title("BeQOC"))

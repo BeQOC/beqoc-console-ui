@@ -1,11 +1,11 @@
-// Package console gives BeQOC tools a small, consistent terminal vocabulary:
+// Package consoleui gives BeQOC tools a small, consistent terminal vocabulary:
 // semantic color roles, status symbols, a light/dark palette and plain
 // rendering that degrades cleanly on every color profile.
 //
 // The package is a thin presentation layer. It owns no global state, writes no
 // files and contains no product logic. Consumers construct a [Theme] with
 // [New], keep it, and pass it to the optional spinner and prompt packages.
-package console
+package consoleui
 
 import (
 	"image/color"
@@ -211,7 +211,7 @@ func ansiSlot(role Role, dark bool) string {
 		case RoleWarn:
 			return "11" // bright yellow
 		case RoleInfo:
-			return "12" // bright blue
+			return "13" // bright magenta
 		default:
 			return "7"
 		}
@@ -231,7 +231,7 @@ func ansiSlot(role Role, dark bool) string {
 	case RoleWarn:
 		return "3" // yellow
 	case RoleInfo:
-		return "4" // blue
+		return "5" // magenta
 	default:
 		return "7"
 	}
