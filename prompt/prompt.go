@@ -74,7 +74,7 @@ type Options struct {
 func New(opts Options) *Prompter {
 	theme := opts.Theme
 	if theme == nil {
-		theme = console.New()
+		theme = console.New(console.WithOutput(opts.Output))
 	}
 	return &Prompter{
 		theme:      theme,

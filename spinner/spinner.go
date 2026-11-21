@@ -101,7 +101,6 @@ type Spinner struct {
 // New creates a spinner for text.
 func New(text string, opts ...Option) *Spinner {
 	cfg := config{
-		theme:    console.New(),
 		writer:   os.Stdout,
 		frames:   DefaultFrames,
 		interval: DefaultInterval,
@@ -112,7 +111,7 @@ func New(text string, opts ...Option) *Spinner {
 		}
 	}
 	if cfg.theme == nil {
-		cfg.theme = console.New()
+		cfg.theme = console.New(console.WithOutput(cfg.writer))
 	}
 	if cfg.writer == nil {
 		cfg.writer = os.Stdout

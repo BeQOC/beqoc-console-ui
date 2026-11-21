@@ -11,19 +11,6 @@ type Color struct {
 	Dark  string
 }
 
-func (c Color) pick(dark bool) string {
-	if dark {
-		if c.Dark != "" {
-			return c.Dark
-		}
-		return c.Light
-	}
-	if c.Light != "" {
-		return c.Light
-	}
-	return c.Dark
-}
-
 // Palette holds one [Color] per colored semantic role. Strong text and plain
 // text carry no color of their own.
 type Palette struct {
