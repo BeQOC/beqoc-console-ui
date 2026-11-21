@@ -19,8 +19,10 @@ import (
 	console "github.com/BeQOC/beqoc-console-ui"
 )
 
-// DefaultFrames is the braille frame set.
-var DefaultFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// DefaultFrames returns a copy of the braille frame set.
+func DefaultFrames() []string {
+	return []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+}
 
 // DefaultInterval is the frame interval.
 const DefaultInterval = 80 * time.Millisecond
@@ -102,7 +104,7 @@ type Spinner struct {
 func New(text string, opts ...Option) *Spinner {
 	cfg := config{
 		writer:   os.Stdout,
-		frames:   DefaultFrames,
+		frames:   DefaultFrames(),
 		interval: DefaultInterval,
 	}
 	for _, opt := range opts {
@@ -117,7 +119,7 @@ func New(text string, opts ...Option) *Spinner {
 		cfg.writer = os.Stdout
 	}
 	if len(cfg.frames) == 0 {
-		cfg.frames = DefaultFrames
+		cfg.frames = DefaultFrames()
 	}
 	if cfg.interval <= 0 {
 		cfg.interval = DefaultInterval
