@@ -398,6 +398,19 @@ func (s *Session) Wait() Result {
 	return result
 }
 
+// WaitForExit waits for the child to end and returns its final state. Unlike
+// [Session.Wait] it does not require a result, so a test can assert how the
+// child terminated: an exit code, or a signal.
+func (s *Session) WaitForExit() *os.ProcessState {
+	s.t.Helper()
+	if ok, _ := s.reap(s.opts.Timeout); !ok {
+		partial := s.out.String()
+		s.kill()
+		s.t.Fatalf("ptytest: scenario %q did not exit within %s; output: %q", s.opts.Scenario, s.opts.Timeout, partial)
+	}
+	return s.cmd.ProcessState
+}
+
 // InitialTermios returns the terminal state captured before the child started.
 func (s *Session) InitialTermios() (Termios, error) {
 	return s.initial, s.initialErr

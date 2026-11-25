@@ -6,6 +6,14 @@
 // one answer per line, honors the caller context and never turns an input end
 // into a silent answer.
 //
+// On a terminal, Ctrl-C, SIGINT and SIGTERM cancel the question with
+// [ErrCanceled], and Ctrl-D ends it with [ErrEOF]; neither is ever returned as
+// an answer. A caller context always wins: a canceled or expired context stops
+// the form and the returned error matches both [ErrCanceled] and the context
+// error. The prompt disables the form library's own signal handling to tell
+// these cases apart, so the process is not terminated by the library: the owner
+// inspects the returned error and decides what to do.
+//
 // Only the common forms are exposed. Callers own the interaction policy; this
 // package never retries a declined confirmation or inspects product state.
 package prompt
@@ -226,15 +234,6 @@ func hasChoice[T comparable](choices []Choice[T], value T) bool {
 		}
 	}
 	return false
-}
-
-// runForm runs the huh form on a real terminal.
-func (p *Prompter) runForm(ctx context.Context, field huh.Field) error {
-	form := huh.NewForm(huh.NewGroup(field)).
-		WithTheme(HuhTheme(p.theme)).
-		WithInput(p.input).
-		WithOutput(p.output)
-	return form.RunWithContext(ctx)
 }
 
 // isTerminal reports whether the stream is a real terminal.

@@ -6,13 +6,15 @@ import (
 	"io"
 )
 
-// ErrCanceled reports a canceled prompt: Ctrl-C, SIGINT or SIGTERM, or a
-// canceled caller context. Cancellation that comes from the context also
-// matches context.Canceled or context.DeadlineExceeded.
+// ErrCanceled reports a canceled prompt: Ctrl-C, SIGINT, SIGTERM, a terminal
+// that closed while the question was open, or a canceled caller context.
+// Cancellation that comes from the context also matches context.Canceled or
+// context.DeadlineExceeded.
 var ErrCanceled = errors.New("prompt: canceled")
 
-// ErrEOF reports that the input ended before an answer was given. It wraps
-// io.EOF, so errors.Is(err, io.EOF) is true.
+// ErrEOF reports that the input ended before an answer was given: a closed
+// pipe, or Ctrl-D on a terminal. It wraps io.EOF, so errors.Is(err, io.EOF) is
+// true.
 var ErrEOF = fmt.Errorf("prompt: input closed: %w", io.EOF)
 
 // ErrNoChoices reports a [Select] without choices.

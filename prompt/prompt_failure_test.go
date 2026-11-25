@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
@@ -155,6 +156,43 @@ func init() {
 	ptytest.RegisterScenario("fail-pty-confirm-ctx-deadline", scenario(func() (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
+		return ptyPrompter().Confirm(ctx, prompt.ConfirmOptions{Title: "Continue?"})
+	}))
+
+	// signal-lifecycle runs a successful prompt and then sends SIGTERM to its own
+	// process. A stopped handler means the default action terminates the child; a
+	// leaked one swallows the signal and the child reports that it survived.
+	ptytest.RegisterScenario("signal-lifecycle", scenario(func() (any, error) {
+		value, err := ptyPrompter().Confirm(context.Background(), prompt.ConfirmOptions{
+			Title:   "Continue?",
+			Default: true,
+		})
+		if err != nil {
+			return nil, err
+		}
+		fmt.Fprintln(os.Stdout, "prompt-returned")
+		if signalErr := syscall.Kill(os.Getpid(), syscall.SIGTERM); signalErr != nil {
+			return nil, signalErr
+		}
+		// An unhandled SIGTERM ends the process right here. Surviving the wait
+		// means a handler is still registered, which is the bug under test.
+		time.Sleep(300 * time.Millisecond)
+		fmt.Fprintln(os.Stdout, "alive-after-sigterm")
+		return map[string]any{"alive": true, "value": value}, nil
+	}))
+
+	// The parent cancels the context in flight: it resizes the terminal once the
+	// form is on screen, which is an observable, ordered trigger.
+	ptytest.RegisterScenario("fail-pty-confirm-ctx-inflight", scenario(func() (any, error) {
+		winch := make(chan os.Signal, 1)
+		signal.Notify(winch, syscall.SIGWINCH)
+		defer signal.Stop(winch)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			<-winch
+			cancel()
+		}()
 		return ptyPrompter().Confirm(ctx, prompt.ConfirmOptions{Title: "Continue?"})
 	}))
 
@@ -313,8 +351,9 @@ func (w *cappedWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-// closeTerminalWhenRendered takes the master away as soon as the prompt has
-// drawn its title on the terminal.
+// closeTerminalWhenRendered takes the master away right after the prompt has
+// drawn the marker on the terminal (the rendered title), so the close is tied
+// to an observable output event instead of a fixed delay.
 func closeTerminalWhenRendered(master *os.File, marker string) {
 	var seen []byte
 	buffer := make([]byte, 1024)
@@ -431,12 +470,14 @@ func TestPTYSIGTERMNeverBecomesAnAnswer(t *testing.T) {
 			reported := decodeOutcome(t, session.Wait())
 			expectNoPanic(t, reported)
 
-			// RED: Relatório P0-1 (C3 corrige). Today SIGTERM returns the
-			// current or default value as a silent success.
+			// Protects Relatório P0-1: SIGTERM must never complete the form
+			// with its current or default value.
 			if reported.Error == "" {
 				t.Errorf("SIGTERM returned (%v, nil); a signal must never become an answer", reported.Value)
 			}
-			// C3 fortalece para errors.Is(err, prompt.ErrCanceled).
+			if !reported.ErrCanceled {
+				t.Errorf("error %q does not match prompt.ErrCanceled", reported.Error)
+			}
 		})
 	}
 }
@@ -467,15 +508,17 @@ func TestPTYCtrlCIsNotAHuhError(t *testing.T) {
 			reported := decodeOutcome(t, session.Wait())
 			expectNoPanic(t, reported)
 
-			// RED: Relatório P0-6a (C3 corrige). Today the error is
-			// huh.ErrUserAborted, which couples every caller to huh.
+			// Protects Relatório P0-6a: Ctrl-C cancels without leaking huh's
+			// error type into the caller.
 			if reported.Error == "" {
 				t.Errorf("Ctrl-C returned (%v, nil); want a cancellation error", reported.Value)
 			}
 			if reported.UserAborted {
 				t.Errorf("Ctrl-C leaked huh.ErrUserAborted; C3 normalizes it to prompt.ErrCanceled")
 			}
-			// C3 fortalece para errors.Is(err, prompt.ErrCanceled).
+			if !reported.ErrCanceled {
+				t.Errorf("error %q does not match prompt.ErrCanceled", reported.Error)
+			}
 
 			// This half is green today: the matrix shows the terminal restored
 			// after Ctrl-C, and it must stay that way.
@@ -508,17 +551,33 @@ func TestPTYCtrlDTerminates(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			session := startFailurePTY(t, testCase.scenario)
 			session.WaitFor(testCase.ready)
+			initial, err := session.InitialTermios()
+			if err != nil {
+				t.Fatalf("initial terminal state: %v", err)
+			}
 			session.Send("\x04")
 
-			// RED: Relatório P0-6d (C3 corrige). Today Wait fails here at the
-			// 3s watchdog because the form never returns.
+			// Protects Relatório P0-6d: Ctrl-D is the end of input and ends the
+			// question instead of hanging the form.
 			reported := decodeOutcome(t, session.Wait())
 			expectNoPanic(t, reported)
 
 			if reported.Error == "" {
 				t.Errorf("Ctrl-D returned (%v, nil); want an error, never an answer", reported.Value)
 			}
-			// C3 fortalece para errors.Is(err, prompt.ErrEOF) ou ErrCanceled.
+			// Ctrl-D is the end of input, not an interrupt.
+			if !reported.EOF {
+				t.Errorf("error %q does not match prompt.ErrEOF", reported.Error)
+			}
+
+			// The form must restore the terminal on its way out.
+			final, termErr := session.Termios()
+			if termErr != nil {
+				t.Fatalf("terminal state after Ctrl-D: %v", termErr)
+			}
+			if final != initial {
+				t.Errorf("terminal state after Ctrl-D = %v, want %v", final, initial)
+			}
 		})
 	}
 }
@@ -530,10 +589,14 @@ func TestPTYConfirmHonorsAPreCancelledContext(t *testing.T) {
 	reported := decodeOutcome(t, session.Wait())
 	expectNoPanic(t, reported)
 
-	// RED: Relatório P0-6b (C3 corrige). Today huh reports its own ErrTimeout.
+	// Protects Relatório P0-6b: a canceled context is never reported as a
+	// form-library timeout.
 	if !reported.Canceled {
 		t.Errorf("pre-cancelled context returned (%v, %q); want errors.Is(err, context.Canceled)",
 			reported.Value, reported.Error)
+	}
+	if !reported.ErrCanceled {
+		t.Errorf("error %q does not match prompt.ErrCanceled", reported.Error)
 	}
 }
 
@@ -544,10 +607,13 @@ func TestPTYConfirmHonorsAnExpiredDeadline(t *testing.T) {
 	reported := decodeOutcome(t, session.Wait())
 	expectNoPanic(t, reported)
 
-	// RED: Relatório P0-6b (C3 corrige).
+	// Protects Relatório P0-6b for deadlines, which are cancellations too.
 	if !reported.Deadline {
 		t.Errorf("expired deadline returned (%v, %q); want errors.Is(err, context.DeadlineExceeded)",
 			reported.Value, reported.Error)
+	}
+	if !reported.ErrCanceled {
+		t.Errorf("error %q does not match prompt.ErrCanceled", reported.Error)
 	}
 }
 
@@ -573,13 +639,19 @@ func TestPipeConfirmHonorsAPreCancelledContext(t *testing.T) {
 func TestPTYReturnsWhenTheTerminalDisappears(t *testing.T) {
 	session := startFailurePTY(t, "fail-pty-master-closed")
 
-	// RED: matriz 1.1 "Master PTY fechado" (C3 corrige). Today Wait fails here
-	// at the 3s watchdog because the prompt waits on a dead terminal.
+	// Protects matriz 1.1 "Master PTY fechado": the prompt notices the dead
+	// terminal and returns instead of waiting for input forever. The scenario
+	// closes the master right after the title appears, an observable output
+	// marker, so the test does not depend on a fixed delay.
 	reported := decodeOutcome(t, session.Wait())
 	expectNoPanic(t, reported)
 
 	if reported.Error == "" {
 		t.Errorf("a prompt whose terminal disappeared returned (%v, nil); want an error", reported.Value)
+	}
+	// The whole conversation is canceled when the terminal goes away.
+	if !reported.ErrCanceled {
+		t.Errorf("error %q does not match prompt.ErrCanceled", reported.Error)
 	}
 }
 
@@ -780,4 +852,46 @@ func TestPTYInputRendersThePlaceholder(t *testing.T) {
 	if got := resultString(t, result); got != "beqoc" {
 		t.Fatalf("input = %q, want beqoc", got)
 	}
+}
+
+// TestPTYConfirmHonorsACancellationInFlight protects P0-6b for a context that is
+// canceled while the form is already open: the prompt must stop and report the
+// cancellation, not wait for an answer.
+func TestPTYConfirmHonorsACancellationInFlight(t *testing.T) {
+	session := startFailurePTY(t, "fail-pty-confirm-ctx-inflight")
+
+	session.WaitFor("Continue?")
+	session.Resize(70, 24)
+
+	reported := decodeOutcome(t, session.Wait())
+	expectNoPanic(t, reported)
+
+	if !reported.Canceled {
+		t.Errorf("in-flight cancel returned (%v, %q); want errors.Is(err, context.Canceled)",
+			reported.Value, reported.Error)
+	}
+	if !reported.ErrCanceled {
+		t.Errorf("error %q does not match prompt.ErrCanceled", reported.Error)
+	}
+}
+
+// TestPTYSignalHandlerDoesNotLeak protects the signal lifecycle: after a prompt
+// returns, its SIGTERM handler must be stopped, otherwise the process swallows
+// every later termination request and a CLI becomes uninterruptible.
+func TestPTYSignalHandlerDoesNotLeak(t *testing.T) {
+	session := startFailurePTY(t, "signal-lifecycle")
+
+	session.WaitFor("Continue?")
+	session.SendLine("y")
+	// The prompt returned, so the deferred stop of its handler already ran.
+	session.WaitFor("prompt-returned")
+
+	state := session.WaitForExit()
+	if status, ok := state.Sys().(syscall.WaitStatus); ok && status.Signaled() && status.Signal() == syscall.SIGTERM {
+		return
+	}
+	if _, alive := session.Output().WaitFor("alive-after-sigterm", time.Second); alive {
+		t.Fatalf("the signal handler leaked: the child survived SIGTERM")
+	}
+	t.Fatalf("the child ended with %v, want death by SIGTERM", state)
 }
