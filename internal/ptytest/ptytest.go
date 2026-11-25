@@ -131,12 +131,25 @@ func runChild() int {
 	if err != nil {
 		result.Err = err.Error()
 	}
+	var extra map[string]string
 	if size, sizeErr := pty.GetsizeFull(os.Stdout); sizeErr == nil {
-		result.Extra = map[string]string{
+		extra = map[string]string{
 			"cols": strconv.Itoa(int(size.Cols)),
 			"rows": strconv.Itoa(int(size.Rows)),
 		}
 	}
+	// The child reports the terminal state it leaves behind. macOS revokes the
+	// slave when the session leader exits, so the parent cannot always read it
+	// afterwards; the child is still alive here and sees the same terminal.
+	if state, stateErr := readTermios(os.Stdin); stateErr == nil {
+		if extra == nil {
+			extra = make(map[string]string, 3)
+		}
+		extra["icanon"] = strconv.FormatBool(state.Canonical)
+		extra["echo"] = strconv.FormatBool(state.Echo)
+		extra["isig"] = strconv.FormatBool(state.Signals)
+	}
+	result.Extra = extra
 	if err := writeResult(result); err != nil {
 		fmt.Fprintf(os.Stderr, "ptytest: %v\n", err)
 		return 2
@@ -202,6 +215,9 @@ type Session struct {
 
 	resultR *os.File
 	out     *Output
+
+	result      Result
+	resultReady bool
 
 	initial    Termios
 	initialErr error
@@ -395,6 +411,8 @@ func (s *Session) Wait() Result {
 	if err := json.Unmarshal(raw, &result); err != nil {
 		s.t.Fatalf("ptytest: decode result %q: %v", raw, err)
 	}
+	s.result = result
+	s.resultReady = true
 	return result
 }
 
@@ -416,12 +434,43 @@ func (s *Session) InitialTermios() (Termios, error) {
 	return s.initial, s.initialErr
 }
 
-// Termios returns the terminal state of the child's terminal now.
+// Termios returns the terminal state of the child's terminal now. When the
+// parent cannot read it (macOS revokes the slave once the session leader exits),
+// the state the child reported in its result is used instead.
 func (s *Session) Termios() (Termios, error) {
 	if s.slave == nil {
 		return Termios{}, errors.New("ptytest: terminal state needs a pseudo-terminal")
 	}
-	return readTermios(s.slave)
+	state, err := readTermios(s.slave)
+	if err == nil {
+		return state, nil
+	}
+	if reported, ok := s.childTermios(); ok {
+		return reported, nil
+	}
+	return Termios{}, err
+}
+
+// childTermios reads the terminal state the child reported with its result.
+func (s *Session) childTermios() (Termios, bool) {
+	if !s.resultReady {
+		return Termios{}, false
+	}
+	flag := func(name string) (bool, bool) {
+		raw, present := s.result.Extra[name]
+		if !present {
+			return false, false
+		}
+		value, parseErr := strconv.ParseBool(raw)
+		return value, parseErr == nil
+	}
+	canonical, okCanonical := flag("icanon")
+	echo, okEcho := flag("echo")
+	signals, okSignals := flag("isig")
+	if !okCanonical || !okEcho || !okSignals {
+		return Termios{}, false
+	}
+	return Termios{Canonical: canonical, Echo: echo, Signals: signals}, true
 }
 
 // Close kills the child if it is still running and releases every descriptor.

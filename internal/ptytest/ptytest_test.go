@@ -68,6 +68,13 @@ func TestPTYEchoesALineAndReportsTheResult(t *testing.T) {
 	if got := result.Extra["cols"]; got != "80" {
 		t.Fatalf("reported cols = %q, want 80", got)
 	}
+	// The child reports its own terminal state; macOS revokes the slave once the
+	// session leader exits, so this is what the parent reads after a run there.
+	for _, flag := range []string{"icanon", "echo", "isig"} {
+		if got := result.Extra[flag]; got != "true" {
+			t.Fatalf("reported %s = %q, want true (the scenario leaves a cooked terminal)", flag, got)
+		}
+	}
 
 	initial, err := session.InitialTermios()
 	if err != nil {
@@ -161,5 +168,34 @@ func TestWatchdogKillsAChildThatNeverFinishes(t *testing.T) {
 	done, _ = session.reap(2 * time.Second)
 	if !done {
 		t.Fatal("the child did not exit after the watchdog killed it")
+	}
+}
+
+func TestTermiosFallsBackToTheChildReport(t *testing.T) {
+	// A pipe is not a terminal, so the parent-side read fails exactly like the
+	// revoked slave on macOS; the state the child reported must be used instead.
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	session := &Session{
+		slave:       reader,
+		resultReady: true,
+		result: Result{Extra: map[string]string{
+			"icanon": "false",
+			"echo":   "false",
+			"isig":   "false",
+		}},
+	}
+
+	state, err := session.Termios()
+	if err != nil {
+		t.Fatalf("terminal state: %v", err)
+	}
+	if state.Canonical || state.Echo || state.Signals {
+		t.Fatalf("terminal state = %v, want the child-reported raw state", state)
 	}
 }
