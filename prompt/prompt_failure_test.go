@@ -842,9 +842,14 @@ func TestPTYConfirmRendersDescriptionAndAnswerLabels(t *testing.T) {
 func TestPTYInputRendersThePlaceholder(t *testing.T) {
 	session := startFailurePTY(t, "input")
 
-	output := visibleText(session.WaitFor("Project name"))
-	if !strings.Contains(output, "beqoc") {
-		t.Errorf("prompt output does not show the placeholder %q: %q", "beqoc", output)
+	session.WaitFor("Project name")
+	// The styled placeholder can arrive in more than one write, so wait for the
+	// whole visible text instead of one frame's snapshot.
+	output, ok := session.Output().WaitForFunc(func(data string) bool {
+		return strings.Contains(visibleText(data), "beqoc")
+	}, 3*time.Second)
+	if !ok {
+		t.Fatalf("prompt output does not show the placeholder %q: %q", "beqoc", visibleText(output))
 	}
 
 	session.SendLine("beqoc")
