@@ -36,12 +36,16 @@ import (
 // the error text, whether a panic happened and which sentinel the error
 // satisfied. The parent decides what the contract requires.
 type outcome struct {
-	Value       any    `json:"value"`
-	Error       string `json:"error"`
-	Panic       string `json:"panic"`
-	Canceled    bool   `json:"canceled"`
-	Deadline    bool   `json:"deadline"`
-	UserAborted bool   `json:"userAborted"`
+	Value          any    `json:"value"`
+	Error          string `json:"error"`
+	Panic          string `json:"panic"`
+	Canceled       bool   `json:"canceled"`
+	Deadline       bool   `json:"deadline"`
+	UserAborted    bool   `json:"userAborted"`
+	ErrCanceled    bool   `json:"errCanceled"`
+	EOF            bool   `json:"eof"`
+	NoChoices      bool   `json:"noChoices"`
+	InvalidDefault bool   `json:"invalidDefault"`
 }
 
 // guarded runs a prompt call and encodes both the returned error and any panic,
@@ -62,6 +66,10 @@ func guarded(run func() (any, error)) (encoded any, err error) {
 		reported.Canceled = errors.Is(runErr, context.Canceled)
 		reported.Deadline = errors.Is(runErr, context.DeadlineExceeded)
 		reported.UserAborted = errors.Is(runErr, huh.ErrUserAborted)
+		reported.ErrCanceled = errors.Is(runErr, prompt.ErrCanceled)
+		reported.EOF = errors.Is(runErr, prompt.ErrEOF)
+		reported.NoChoices = errors.Is(runErr, prompt.ErrNoChoices)
+		reported.InvalidDefault = errors.Is(runErr, prompt.ErrInvalidDefault)
 	}
 	// The deferred assignment is what actually returns the outcome, on both the
 	// normal and the recovered-panic paths.
@@ -555,6 +563,9 @@ func TestPipeConfirmHonorsAPreCancelledContext(t *testing.T) {
 		t.Errorf("accessible confirm with a cancelled context returned (%v, %q); want context.Canceled",
 			reported.Value, reported.Error)
 	}
+	if !reported.ErrCanceled {
+		t.Errorf("error %q does not match prompt.ErrCanceled", reported.Error)
+	}
 }
 
 // TestPTYReturnsWhenTheTerminalDisappears covers the "master closed" row of
@@ -585,6 +596,9 @@ func TestPipeConfirmRejectsAnInvalidAnswerAtEOF(t *testing.T) {
 		t.Errorf("invalid answer followed by EOF returned (%v, nil); want an error", reported.Value)
 	}
 	// C3 fortalece para errors.Is(err, prompt.ErrEOF).
+	if !reported.EOF {
+		t.Errorf("error %q does not match prompt.ErrEOF", reported.Error)
+	}
 }
 
 // TestPipeInputValidatesBeforeEOF protects P0-3: EOF after a rejected answer
@@ -600,6 +614,9 @@ func TestPipeInputValidatesBeforeEOF(t *testing.T) {
 		t.Errorf("EOF after a rejected answer returned (%v, nil); want an error", reported.Value)
 	}
 	// C3 fortalece para errors.Is(err, prompt.ErrEOF).
+	if !reported.EOF {
+		t.Errorf("error %q does not match prompt.ErrEOF", reported.Error)
+	}
 }
 
 // TestPipeSelectSurvivesBadAnswers protects P0-2 and P0-3: answers outside the
@@ -608,10 +625,11 @@ func TestPipeSelectSurvivesBadAnswers(t *testing.T) {
 	cases := []struct {
 		name     string
 		scenario string
+		noChoice bool
 	}{
 		{name: "index out of range", scenario: "fail-pipe-select-99-eof"},
 		{name: "not a number", scenario: "fail-pipe-select-abc-eof"},
-		{name: "no choices", scenario: "fail-pipe-select-no-choices"},
+		{name: "no choices", scenario: "fail-pipe-select-no-choices", noChoice: true},
 	}
 
 	for _, testCase := range cases {
@@ -628,6 +646,13 @@ func TestPipeSelectSurvivesBadAnswers(t *testing.T) {
 				t.Errorf("select returned (%v, nil); want an error", reported.Value)
 			}
 			// C3 fortalece para errors.Is(err, prompt.ErrNoChoices) na lista vazia.
+			if testCase.noChoice {
+				if !reported.NoChoices {
+					t.Errorf("error %q does not match prompt.ErrNoChoices", reported.Error)
+				}
+			} else if !reported.EOF {
+				t.Errorf("error %q does not match prompt.ErrEOF", reported.Error)
+			}
 		})
 	}
 }
@@ -643,6 +668,9 @@ func TestPipeSelectRejectsEOFWithoutADefault(t *testing.T) {
 	if reported.Error == "" {
 		t.Errorf("EOF returned the first choice (%v, nil); want an error", reported.Value)
 	}
+	if !reported.EOF {
+		t.Errorf("error %q does not match prompt.ErrEOF", reported.Error)
+	}
 }
 
 // TestPipeSelectRejectsADefaultOutsideTheChoices protects P0-2: a default that
@@ -657,6 +685,9 @@ func TestPipeSelectRejectsADefaultOutsideTheChoices(t *testing.T) {
 		t.Errorf("a default outside the choices returned (%v, nil); want an error", reported.Value)
 	}
 	// C3 fortalece para errors.Is(err, prompt.ErrInvalidDefault).
+	if !reported.InvalidDefault {
+		t.Errorf("error %q does not match prompt.ErrInvalidDefault", reported.Error)
+	}
 }
 
 // TestPipeInteractiveInputFallsBackToLineMode protects P0-4: a prompt whose
@@ -702,6 +733,9 @@ func TestPipeInteractivePromptsDoNotLoopOnEOF(t *testing.T) {
 
 			if reported.Error == "" {
 				t.Errorf("EOF on a pipe returned (%v, nil); want an error", reported.Value)
+			}
+			if !reported.EOF {
+				t.Errorf("error %q does not match prompt.ErrEOF", reported.Error)
 			}
 		})
 	}
