@@ -10,7 +10,6 @@ import (
 
 	"github.com/BeQOC/beqoc-console-ui/internal/ptytest"
 	"github.com/BeQOC/beqoc-console-ui/prompt"
-	"github.com/BeQOC/beqoc-console-ui/theme"
 )
 
 // TestPTYHelperProcess is the child entry point of the ptytest harness.
@@ -19,9 +18,7 @@ func TestPTYHelperProcess(t *testing.T) {
 }
 
 func ptyPrompter() *prompt.Prompter {
-	return prompt.New(prompt.Options{
-		Theme: theme.New(theme.WithProfile(theme.ProfileNone)),
-	})
+	return prompt.New(prompt.Options{Theme: ptyTheme()})
 }
 
 func init() {
