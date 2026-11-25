@@ -5,6 +5,10 @@
 // The package is a presentation domain. It owns no global state, writes no
 // files and contains no product logic. Consumers construct a [Theme] with
 // [New], keep it, and pass it to the spinner and prompt domains.
+//
+// Without an explicit [WithSymbols], the status symbols follow the process
+// locale: UTF-8 terminals get [DefaultSymbols] and non-UTF-8 locales get
+// [ASCIISymbols].
 package theme
 
 import (
@@ -74,11 +78,12 @@ type roleColors struct {
 }
 
 type config struct {
-	output  io.Writer
-	profile Profile
-	dark    bool
-	palette Palette
-	symbols Symbols
+	output        io.Writer
+	profile       Profile
+	dark          bool
+	palette       Palette
+	symbols       Symbols
+	customSymbols bool
 }
 
 // Option configures a [Theme].
@@ -117,15 +122,19 @@ func WithPalette(p Palette) Option {
 	}
 }
 
-// WithSymbols replaces the status symbols.
+// WithSymbols replaces the status symbols. An explicit choice also wins over the
+// locale, which otherwise selects [ASCIISymbols] outside UTF-8.
 func WithSymbols(s Symbols) Option {
 	return func(c *config) {
 		c.symbols = s
+		c.customSymbols = true
 	}
 }
 
 // New builds a theme. Without options it returns the dark BeQOC theme with the
-// profile detected from os.Stdout.
+// profile detected from os.Stdout and the status symbols chosen by the process
+// locale, falling back to [ASCIISymbols] outside UTF-8 unless [WithSymbols] was
+// used.
 func New(opts ...Option) *Theme {
 	cfg := config{
 		output:  os.Stdout,
@@ -141,6 +150,9 @@ func New(opts ...Option) *Theme {
 	}
 	if cfg.output == nil {
 		cfg.output = os.Stdout
+	}
+	if !cfg.customSymbols && !localeAllowsUTF8() {
+		cfg.symbols = ASCIISymbols()
 	}
 
 	t := &Theme{

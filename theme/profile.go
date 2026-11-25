@@ -2,6 +2,8 @@ package theme
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -50,6 +52,48 @@ func (p Profile) String() string {
 		return "truecolor"
 	default:
 		return "unknown"
+	}
+}
+
+// ErrUnknownProfile is returned by [ParseProfile] for a name that is not one of
+// the profiles in [Profiles].
+var ErrUnknownProfile = errors.New("theme: unknown color profile")
+
+// ParseProfile resolves a profile name. Names are matched case-insensitively,
+// so configuration files and environment snippets may use any capitalisation;
+// the empty name means [ProfileAuto], the default the DevTools configuration
+// uses. An unknown name returns [ErrUnknownProfile] together with
+// [ProfileAuto], so a bad setting never fails closed.
+func ParseProfile(name string) (Profile, error) {
+	switch strings.ToLower(name) {
+	case "", "auto":
+		return ProfileAuto, nil
+	case "none":
+		return ProfileNone, nil
+	case "ascii":
+		return ProfileASCII, nil
+	case "ansi":
+		return ProfileANSI, nil
+	case "ansi256":
+		return ProfileANSI256, nil
+	case "truecolor":
+		return ProfileTrueColor, nil
+	default:
+		return ProfileAuto, fmt.Errorf("%w: %q", ErrUnknownProfile, name)
+	}
+}
+
+// Profiles returns every profile in display order, from automatic detection to
+// truecolor. The order is stable, and every entry round-trips through
+// [Profile.String] and [ParseProfile].
+func Profiles() []Profile {
+	return []Profile{
+		ProfileAuto,
+		ProfileNone,
+		ProfileASCII,
+		ProfileANSI,
+		ProfileANSI256,
+		ProfileTrueColor,
 	}
 }
 
