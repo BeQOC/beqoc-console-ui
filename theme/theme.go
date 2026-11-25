@@ -155,11 +155,12 @@ func New(opts ...Option) *Theme {
 }
 
 func resolveColors(p Palette, dark bool, profile Profile) roleColors {
-	// Sixteen-color terminals do not share one RGB palette, and generic
-	// conversion collapses amber and red into the same slot. Map each role to
-	// the basic slot it conventionally owns so warnings stay distinguishable
-	// from errors.
-	if profile == ProfileANSI {
+	switch profile {
+	case ProfileANSI:
+		// Sixteen-color terminals do not share one RGB palette, and generic
+		// conversion collapses amber and red into the same slot. Map each role
+		// to the basic slot it conventionally owns so warnings stay
+		// distinguishable from errors.
 		return roleColors{
 			primary: lipgloss.Color(ansiSlot(RolePrimary, dark)),
 			accent:  lipgloss.Color(ansiSlot(RoleAccent, dark)),
@@ -169,6 +170,13 @@ func resolveColors(p Palette, dark bool, profile Profile) roleColors {
 			warn:    lipgloss.Color(ansiSlot(RoleWarn, dark)),
 			info:    lipgloss.Color(ansiSlot(RoleInfo, dark)),
 		}
+	case ProfileNone, ProfileASCII:
+		// Neither profile can show color, so the styles stay uncolored. Giving
+		// them a color they cannot render made lipgloss emit a color sequence
+		// that the profile then stripped, which left an empty "\x1b[m" pair
+		// around every colored role under ASCII. Attributes such as bold and
+		// italic are unaffected because they are set on separate styles.
+		return roleColors{}
 	}
 
 	lightDark := lipgloss.LightDark(dark)
