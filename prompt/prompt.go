@@ -1,5 +1,5 @@
-// Package prompt asks confirmation, selection and single-line input questions
-// with the BeQOC console theme and returns plain values.
+// Package prompt asks confirmation, selection, multi-selection and single-line
+// input questions with the BeQOC console theme and returns plain values.
 //
 // A real terminal uses the huh form library. Pipes, scripts, CI jobs and an
 // explicit Accessible prompter use a built-in line reader instead, which reads
@@ -62,6 +62,16 @@ type SelectOptions[T comparable] struct {
 	Description string
 	Choices     []Choice[T]
 	Default     *T
+}
+
+// MultiSelectOptions describes a question with several selectable options.
+type MultiSelectOptions[T comparable] struct {
+	Title       string
+	Description string
+	Choices     []Choice[T]
+	// Defaults are the options selected when the question opens. Every default
+	// must be one of the choices.
+	Defaults []T
 }
 
 // Prompter asks questions with a fixed theme and input/output pair.
@@ -224,6 +234,75 @@ func Select[T comparable](ctx context.Context, p *Prompter, opts SelectOptions[T
 		return zero, err
 	}
 	return value, nil
+}
+
+// MultiSelect asks the user to pick any number of options. The result holds the
+// selected values in the order of the choices, not the order they were picked,
+// and a choice is never returned twice.
+//
+// An empty choice list returns [ErrNoChoices] and a default that is not one of
+// the choices returns [ErrInvalidDefault], both before any input is read.
+//
+// On a terminal the form toggles with x or space, navigates with the arrow keys
+// and searches with "/". In line mode the numbered choices are printed with a
+// [x] marker and the answers are:
+//
+//	<number> or <value>   toggle that choice
+//	?text                 show only the choices whose label or value contains text
+//	?                     clear the search
+//	done                  finish and return the selection
+//
+// An empty line reprints the list, any other answer is rejected and asked
+// again, and the end of the input before "done" returns [ErrEOF] without a
+// partial selection.
+func MultiSelect[T comparable](ctx context.Context, p *Prompter, opts MultiSelectOptions[T]) ([]T, error) {
+	if len(opts.Choices) == 0 {
+		return nil, ErrNoChoices
+	}
+	for _, value := range opts.Defaults {
+		if !hasChoice(opts.Choices, value) {
+			return nil, ErrInvalidDefault
+		}
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.line {
+		return multiSelectLine(p, ctx, opts)
+	}
+
+	values := append([]T(nil), opts.Defaults...)
+	options := make([]huh.Option[T], len(opts.Choices))
+	for index, choice := range opts.Choices {
+		options[index] = huh.NewOption(choice.Label, choice.Value)
+	}
+	field := huh.NewMultiSelect[T]().
+		Title(opts.Title).
+		Options(options...).
+		Value(&values)
+	if opts.Description != "" {
+		field.Description(opts.Description)
+	}
+	if err := p.runForm(ctx, field); err != nil {
+		return nil, err
+	}
+	return inChoiceOrder(opts.Choices, values), nil
+}
+
+// inChoiceOrder returns the selected values in the order of the choices.
+func inChoiceOrder[T comparable](choices []Choice[T], values []T) []T {
+	selected := make(map[T]bool, len(values))
+	for _, value := range values {
+		selected[value] = true
+	}
+	result := make([]T, 0, len(values))
+	for _, choice := range choices {
+		if selected[choice.Value] {
+			result = append(result, choice.Value)
+		}
+	}
+	return result
 }
 
 // hasChoice reports whether value is one of the choices.

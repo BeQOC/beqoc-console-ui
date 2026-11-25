@@ -209,3 +209,105 @@ func selectLine[T comparable](p *Prompter, ctx context.Context, opts SelectOptio
 		return opts.Choices[number-1].Value, nil
 	}
 }
+
+// multiSelectLine prints the numbered choices and reads toggle commands until
+// "done". The numbers are positions in the whole list, so a search never
+// changes what a number means.
+func multiSelectLine[T comparable](p *Prompter, ctx context.Context, opts MultiSelectOptions[T]) ([]T, error) {
+	selected := make(map[int]bool, len(opts.Defaults))
+	for index, choice := range opts.Choices {
+		for _, value := range opts.Defaults {
+			if choice.Value == value {
+				selected[index] = true
+			}
+		}
+	}
+
+	title := opts.Title
+	if title == "" {
+		title = "Select:"
+	}
+	p.printTitle(title)
+	if opts.Description != "" {
+		p.printHint(opts.Description)
+	}
+	p.printHint("Enter a number or value to toggle, ?text to search, done to finish.")
+	printMultiChoices(p, opts.Choices, selected, "")
+
+	filter := ""
+	for {
+		answer, err := p.readLine(ctx)
+		if err != nil {
+			return nil, err
+		}
+		command := strings.TrimSpace(answer)
+		switch {
+		case strings.EqualFold(command, "done"):
+			result := make([]T, 0, len(opts.Choices))
+			for index, choice := range opts.Choices {
+				if selected[index] {
+					result = append(result, choice.Value)
+				}
+			}
+			return result, nil
+		case strings.HasPrefix(command, "?"):
+			filter = strings.TrimSpace(command[1:])
+			printMultiChoices(p, opts.Choices, selected, filter)
+		case command == "":
+			printMultiChoices(p, opts.Choices, selected, filter)
+		default:
+			index, found := matchChoice(opts.Choices, command)
+			if !found {
+				p.printError(fmt.Sprintf("%q is not one of the choices: type ?text to search or done to finish", answer))
+				continue
+			}
+			selected[index] = !selected[index]
+			printMultiChoices(p, opts.Choices, selected, filter)
+		}
+	}
+}
+
+// printMultiChoices prints the choices with their selection marker. It is a
+// function because Go does not allow type parameters on methods.
+func printMultiChoices[T comparable](p *Prompter, choices []Choice[T], selected map[int]bool, filter string) {
+	shown := 0
+	for index, choice := range choices {
+		if filter != "" && !choiceMatches(choice, filter) {
+			continue
+		}
+		marker := "[ ]"
+		if selected[index] {
+			marker = "[x]"
+		}
+		p.printText(fmt.Sprintf("%s %d. %s", marker, index+1, choice.Label))
+		shown++
+	}
+	if shown == 0 {
+		p.printError(fmt.Sprintf("no choice matches %q", filter))
+	}
+}
+
+// matchChoice resolves an answer to a choice index. A number is always a
+// position; otherwise the answer must equal a value's text form.
+func matchChoice[T comparable](choices []Choice[T], answer string) (int, bool) {
+	if number, err := strconv.Atoi(answer); err == nil {
+		if number >= 1 && number <= len(choices) {
+			return number - 1, true
+		}
+		return 0, false
+	}
+	for index, choice := range choices {
+		if fmt.Sprint(choice.Value) == answer {
+			return index, true
+		}
+	}
+	return 0, false
+}
+
+// choiceMatches reports whether the filter appears in the label or in the
+// value, case-insensitively.
+func choiceMatches[T comparable](choice Choice[T], filter string) bool {
+	needle := strings.ToLower(filter)
+	return strings.Contains(strings.ToLower(choice.Label), needle) ||
+		strings.Contains(strings.ToLower(fmt.Sprint(choice.Value)), needle)
+}
