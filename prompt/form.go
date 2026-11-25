@@ -131,7 +131,7 @@ func (p *Prompter) runForm(ctx context.Context, field huh.Field) error {
 	// WithProgramOptions replaces huh's option list, so the streams are wired
 	// after it or they would be dropped.
 	form := huh.NewForm(huh.NewGroup(field)).
-		WithTheme(HuhTheme(p.theme)).
+		WithTheme(huhTheme(p.theme)).
 		WithProgramOptions(
 			tea.WithoutSignalHandler(),
 			tea.WithFilter(promptKeyFilter(cause)),

@@ -27,14 +27,6 @@ func snapshot(t *themeapi.Theme) string {
 	fmt.Fprintf(&b, "error: %q\n", t.Error("failed"))
 	fmt.Fprintf(&b, "warn: %q\n", t.Warn("careful"))
 	fmt.Fprintf(&b, "info: %q\n", t.Info("note"))
-	fmt.Fprintf(&b, "success.hint: %q\n", t.SuccessHint("wrote 3 files"))
-	fmt.Fprintf(&b, "success.none: %q\n", t.SuccessNone("plain"))
-	fmt.Fprintf(&b, "error.hint: %q\n", t.ErrorHint("check the file"))
-	fmt.Fprintf(&b, "error.none: %q\n", t.ErrorNone("plain"))
-	fmt.Fprintf(&b, "warn.hint: %q\n", t.WarnHint("slow network"))
-	fmt.Fprintf(&b, "warn.none: %q\n", t.WarnNone("plain"))
-	fmt.Fprintf(&b, "info.hint: %q\n", t.InfoHint("read the guide"))
-	fmt.Fprintf(&b, "info.none: %q\n", t.InfoNone("plain"))
 	fmt.Fprintf(&b, "title: %q\n", t.Title("BeQOC"))
 	fmt.Fprintf(&b, "italic: %q\n", t.Italic("note"))
 	return b.String()
@@ -120,7 +112,7 @@ func TestNoColorDisablesANSI(t *testing.T) {
 	for _, got := range []string{
 		theme.Title("BeQOC"),
 		theme.Success("ready"),
-		theme.SuccessHint("wrote 3 files"),
+		theme.Warn("3 files skipped"),
 		theme.Italic("note"),
 	} {
 		if strings.ContainsRune(got, '\x1b') {
@@ -149,11 +141,11 @@ func TestSymbolsAreConfigurable(t *testing.T) {
 	if got, want := theme.Success("ready"), "OK ready"; got != want {
 		t.Errorf("success = %q, want %q", got, want)
 	}
-	if got, want := theme.ErrorHint("failed"), "NO failed"; got != want {
-		t.Errorf("error hint = %q, want %q", got, want)
+	if got, want := theme.Error("failed"), "NO failed"; got != want {
+		t.Errorf("error = %q, want %q", got, want)
 	}
-	if got, want := theme.WarnNone("careful"), "! careful"; got != want {
-		t.Errorf("warn none = %q, want %q", got, want)
+	if got, want := theme.Warn("careful"), "! careful"; got != want {
+		t.Errorf("warn = %q, want %q", got, want)
 	}
 	if got, want := theme.Info("note"), "? note"; got != want {
 		t.Errorf("info = %q, want %q", got, want)
@@ -180,12 +172,11 @@ func TestEmptyPaletteFallsBackPerProfile(t *testing.T) {
 				wantTitle = "\x1b[1mBeQOC\x1b[m"
 			}
 			cases := map[string]struct{ got, want string }{
-				"title":        {theme.Title("BeQOC"), wantTitle},
-				"success":      {theme.Success("ready"), "✔ ready"},
-				"error hint":   {theme.ErrorHint("failed"), "✗ failed"},
-				"warn none":    {theme.WarnNone("careful"), "! careful"},
-				"info hint":    {theme.InfoHint("note"), "i note"},
-				"success hint": {theme.SuccessHint("wrote files"), "✔ wrote files"},
+				"title":   {theme.Title("BeQOC"), wantTitle},
+				"success": {theme.Success("ready"), "✔ ready"},
+				"error":   {theme.Error("failed"), "✗ failed"},
+				"warn":    {theme.Warn("careful"), "! careful"},
+				"info":    {theme.Info("note"), "i note"},
 			}
 			for name, c := range cases {
 				if c.got != c.want {
@@ -259,16 +250,5 @@ func TestANSIProfileKeepsSemanticRolesDistinct(t *testing.T) {
 		if roles["accent"] == roles["info"] {
 			t.Errorf("dark=%t: accent and info share the same ANSI color: %q", dark, roles["accent"])
 		}
-	}
-}
-
-func TestUnknownRoleRendersPlain(t *testing.T) {
-	theme := themeapi.New(themeapi.WithProfile(themeapi.ProfileTrueColor))
-	got := theme.Render(theme.Style(themeapi.Role(99)), "plain")
-	if got != "plain" {
-		t.Fatalf("unknown role = %q, want plain", got)
-	}
-	if theme.Palette().Primary.Light == "" {
-		t.Fatal("Palette() did not return the default palette")
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
+
 	themeapi "github.com/BeQOC/beqoc-console-ui/theme"
 )
 
@@ -43,21 +45,22 @@ func contrastRatio(t *testing.T, first, second string) float64 {
 	return (high + 0.05) / (low + 0.05)
 }
 
-// coloredRoles lists the roles that carry a palette color.
-func coloredRoles() []struct {
-	name string
-	role themeapi.Role
+// coloredStyles lists the prebuilt styles that carry a palette color.
+func coloredStyles(consoleTheme *themeapi.Theme) []struct {
+	name  string
+	style lipgloss.Style
 } {
+	styles := consoleTheme.Styles()
 	return []struct {
-		name string
-		role themeapi.Role
+		name  string
+		style lipgloss.Style
 	}{
-		{name: "primary", role: themeapi.RolePrimary},
-		{name: "accent", role: themeapi.RoleAccent},
-		{name: "success", role: themeapi.RoleSuccess},
-		{name: "error", role: themeapi.RoleError},
-		{name: "warn", role: themeapi.RoleWarn},
-		{name: "info", role: themeapi.RoleInfo},
+		{name: "primary", style: styles.Primary},
+		{name: "accent", style: styles.Accent},
+		{name: "success", style: styles.Success},
+		{name: "error", style: styles.Error},
+		{name: "warn", style: styles.Warn},
+		{name: "info", style: styles.Info},
 	}
 }
 
@@ -139,8 +142,8 @@ func TestASCIIProfileHasNoEmptySGR(t *testing.T) {
 		themeapi.WithDark(true),
 	)
 
-	for _, entry := range coloredRoles() {
-		got := consoleTheme.Render(consoleTheme.Style(entry.role), entry.name)
+	for _, entry := range coloredStyles(consoleTheme) {
+		got := consoleTheme.Render(entry.style, entry.name)
 		// RED: Relatório P1-3 (C2 corrige). ASCII has no color, so a colored
 		// role must render as its text, without an empty SGR pair.
 		if strings.Contains(got, "\x1b[m") {
@@ -158,9 +161,9 @@ func TestANSIProfileKeepsLightAndDarkDistinct(t *testing.T) {
 	light := themeapi.New(themeapi.WithProfile(themeapi.ProfileANSI), themeapi.WithDark(false))
 	dark := themeapi.New(themeapi.WithProfile(themeapi.ProfileANSI), themeapi.WithDark(true))
 
-	for _, entry := range coloredRoles() {
-		lightRole := light.Render(light.Style(entry.role), entry.name)
-		darkRole := dark.Render(dark.Style(entry.role), entry.name)
+	for index, entry := range coloredStyles(light) {
+		lightRole := light.Render(entry.style, entry.name)
+		darkRole := dark.Render(coloredStyles(dark)[index].style, entry.name)
 		if lightRole == darkRole {
 			t.Errorf("GREEN: mutação ansiSlot ignorar dark (6.1): %s renders %q in both variants",
 				entry.name, lightRole)
@@ -168,16 +171,16 @@ func TestANSIProfileKeepsLightAndDarkDistinct(t *testing.T) {
 	}
 }
 
-// TestStyleByRoleRendersEachRoleDistinctly protects Style(role) from silently
-// falling back to the plain style.
+// TestStylesRenderEachRoleDistinctly protects the prebuilt styles from
+// silently collapsing into the plain style.
 //
-// GREEN: mutação Style(Role) retornar styles.None (6.1).
-func TestStyleByRoleRendersEachRoleDistinctly(t *testing.T) {
+// GREEN: mutação styles construction (6.1).
+func TestStylesRenderEachRoleDistinctly(t *testing.T) {
 	consoleTheme := themeapi.New(themeapi.WithProfile(themeapi.ProfileTrueColor), themeapi.WithDark(true))
 
-	rendered := make(map[string]string, len(coloredRoles()))
-	for _, entry := range coloredRoles() {
-		got := consoleTheme.Render(consoleTheme.Style(entry.role), "text")
+	rendered := make(map[string]string, len(coloredStyles(consoleTheme)))
+	for _, entry := range coloredStyles(consoleTheme) {
+		got := consoleTheme.Render(entry.style, "text")
 		if !strings.Contains(got, "text") {
 			t.Errorf("Style(%s) lost the text: %q", entry.name, got)
 		}

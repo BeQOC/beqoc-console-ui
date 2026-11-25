@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -200,41 +199,6 @@ func TestInputAccessibleFlow(t *testing.T) {
 	// does render them.
 }
 
-func TestNilThemeFallsBackToDefault(t *testing.T) {
-	fallback := prompt.HuhTheme(nil).Theme(true)
-	explicit := prompt.HuhTheme(theme.New()).Theme(true)
-	if fallback == nil || explicit == nil {
-		t.Fatal("Theme returned nil styles")
-	}
-
-	// A nil theme must build the same styles as an explicitly built default
-	// theme. Returning huh's generic base theme instead fails every comparison.
-	fields := []struct {
-		name string
-		got  any
-		want any
-	}{
-		{"Focused.Title", fallback.Focused.Title, explicit.Focused.Title},
-		{"Focused.Description", fallback.Focused.Description, explicit.Focused.Description},
-		{"Focused.ErrorMessage", fallback.Focused.ErrorMessage, explicit.Focused.ErrorMessage},
-		{"Focused.SelectSelector", fallback.Focused.SelectSelector, explicit.Focused.SelectSelector},
-		{"Focused.SelectedPrefix", fallback.Focused.SelectedPrefix, explicit.Focused.SelectedPrefix},
-		{"Focused.FocusedButton", fallback.Focused.FocusedButton, explicit.Focused.FocusedButton},
-		{"Focused.TextInput.Placeholder", fallback.Focused.TextInput.Placeholder, explicit.Focused.TextInput.Placeholder},
-		{"Help.ShortDesc", fallback.Help.ShortDesc, explicit.Help.ShortDesc},
-	}
-	for _, field := range fields {
-		if !reflect.DeepEqual(field.got, field.want) {
-			t.Errorf("%s = %v, want the default theme's %v", field.name, field.got, field.want)
-		}
-	}
-
-	p := prompt.New(prompt.Options{})
-	if p.Theme() == nil {
-		t.Fatal("New used a nil theme")
-	}
-}
-
 func TestInputDefaultAppliesToAnEmptyAnswer(t *testing.T) {
 	p, _ := newPrompter(t, "\n")
 	got, err := p.Input(context.Background(), prompt.InputOptions{Title: "Name", Default: "default-name"})
@@ -243,20 +207,5 @@ func TestInputDefaultAppliesToAnEmptyAnswer(t *testing.T) {
 	}
 	if got != "default-name" {
 		t.Fatalf("input = %q, want default-name", got)
-	}
-}
-
-func TestThemeUsesConsoleColors(t *testing.T) {
-	theme := theme.New(theme.WithProfile(theme.ProfileTrueColor), theme.WithDark(true))
-
-	styles := prompt.HuhTheme(theme).Theme(false)
-	if got, want := styles.Focused.Title.GetForeground(), theme.Styles().Primary.GetForeground(); !reflect.DeepEqual(got, want) {
-		t.Errorf("title foreground = %v, want %v", got, want)
-	}
-	if got, want := styles.Focused.ErrorMessage.GetForeground(), theme.Styles().Error.GetForeground(); !reflect.DeepEqual(got, want) {
-		t.Errorf("error foreground = %v, want %v", got, want)
-	}
-	if got, want := styles.Focused.Description.GetForeground(), theme.Styles().Hint.GetForeground(); !reflect.DeepEqual(got, want) {
-		t.Errorf("description foreground = %v, want %v", got, want)
 	}
 }

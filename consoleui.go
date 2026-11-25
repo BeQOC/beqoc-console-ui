@@ -3,8 +3,6 @@ package consoleui
 import (
 	"io"
 
-	"github.com/BeQOC/beqoc-console-ui/prompt"
-	"github.com/BeQOC/beqoc-console-ui/spinner"
 	"github.com/BeQOC/beqoc-console-ui/theme"
 )
 
@@ -21,19 +19,12 @@ type (
 	Palette = theme.Palette
 	// Profile is a terminal color capability.
 	Profile = theme.Profile
-	// Role is a semantic style role.
-	Role = theme.Role
 	// Styles holds one prebuilt style per role.
 	Styles = theme.Styles
 	// Symbols are the markers that prefix status lines.
 	Symbols = theme.Symbols
 	// Theme is an immutable set of styles, symbols and rendering metadata.
 	Theme = theme.Theme
-
-	// Spinner is the print-style spinner type. Construct it with spinner.New.
-	Spinner = spinner.Spinner
-	// Prompter is the prompt type. Construct it with prompt.New.
-	Prompter = prompt.Prompter
 )
 
 const (
@@ -49,27 +40,6 @@ const (
 	ProfileANSI256 = theme.ProfileANSI256
 	// ProfileTrueColor emits 24-bit colors.
 	ProfileTrueColor = theme.ProfileTrueColor
-)
-
-const (
-	// RolePrimary is the main brand color.
-	RolePrimary = theme.RolePrimary
-	// RoleAccent marks interactive or secondary emphasis.
-	RoleAccent = theme.RoleAccent
-	// RoleHint renders supporting text.
-	RoleHint = theme.RoleHint
-	// RoleStrong renders bold text without a color.
-	RoleStrong = theme.RoleStrong
-	// RoleSuccess renders successful outcomes.
-	RoleSuccess = theme.RoleSuccess
-	// RoleError renders failures.
-	RoleError = theme.RoleError
-	// RoleWarn renders warnings.
-	RoleWarn = theme.RoleWarn
-	// RoleInfo renders informational output.
-	RoleInfo = theme.RoleInfo
-	// RoleNone renders plain text.
-	RoleNone = theme.RoleNone
 )
 
 // New builds a theme. Without options it returns the dark BeQOC theme with the
@@ -112,3 +82,18 @@ func DefaultPalette() Palette {
 func DefaultSymbols() Symbols {
 	return theme.DefaultSymbols()
 }
+
+// ParseProfile resolves a color profile name. Names are matched
+// case-insensitively and the empty name means [ProfileAuto].
+func ParseProfile(name string) (Profile, error) {
+	return theme.ParseProfile(name)
+}
+
+// Profiles returns every color profile in display order.
+func Profiles() []Profile {
+	return theme.Profiles()
+}
+
+// ErrUnknownProfile reports a color profile name that [ParseProfile] does not
+// know.
+var ErrUnknownProfile = theme.ErrUnknownProfile

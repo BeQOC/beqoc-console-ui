@@ -160,16 +160,6 @@ func New(text string, opts ...Option) *Spinner {
 	if cfg.theme == nil {
 		cfg.theme = theme.New(theme.WithOutput(cfg.writer))
 	}
-	if cfg.writer == nil {
-		cfg.writer = os.Stdout
-	}
-	if len(cfg.frames) == 0 {
-		cfg.frames = DefaultFrames()
-	}
-	if cfg.interval <= 0 {
-		cfg.interval = DefaultInterval
-	}
-
 	animate := isTerminal(cfg.writer) && os.Getenv("TERM") != "dumb"
 	if cfg.animation != nil {
 		animate = *cfg.animation

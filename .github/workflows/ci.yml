@@ -11,8 +11,15 @@ permissions:
 
 jobs:
   quality:
-    name: Quality gate
-    runs-on: ubuntu-latest
+    name: Quality gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -21,11 +28,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Verify modules
+        run: go mod verify
       - name: Build
         run: go build ./...
       - name: Vet
         run: go vet ./...
       - name: Check formatting
+        shell: bash
         run: |
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then
@@ -33,7 +43,7 @@ jobs:
             exit 1
           fi
       - name: Test
-        run: go test ./... -count=1
+        run: go test -race -shuffle=on -count=1 ./...
 
   cross-build:
     name: Cross-build ${{ matrix.goos }}/${{ matrix.goarch }}

@@ -19,30 +19,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Role is a semantic style role.
-type Role int
-
-const (
-	// RolePrimary is the main brand color.
-	RolePrimary Role = iota
-	// RoleAccent marks interactive or secondary emphasis.
-	RoleAccent
-	// RoleHint renders supporting text.
-	RoleHint
-	// RoleStrong renders bold text without a color.
-	RoleStrong
-	// RoleSuccess renders successful outcomes.
-	RoleSuccess
-	// RoleError renders failures.
-	RoleError
-	// RoleWarn renders warnings.
-	RoleWarn
-	// RoleInfo renders informational output.
-	RoleInfo
-	// RoleNone renders plain text.
-	RoleNone
-)
-
 // Styles holds one prebuilt style per semantic role.
 type Styles struct {
 	Primary lipgloss.Style
@@ -148,9 +124,6 @@ func New(opts ...Option) *Theme {
 			opt(&cfg)
 		}
 	}
-	if cfg.output == nil {
-		cfg.output = os.Stdout
-	}
 	if !cfg.customSymbols && !localeAllowsUTF8() {
 		cfg.symbols = ASCIISymbols()
 	}
@@ -174,13 +147,13 @@ func resolveColors(p Palette, dark bool, profile Profile) roleColors {
 		// to the basic slot it conventionally owns so warnings stay
 		// distinguishable from errors.
 		return roleColors{
-			primary: lipgloss.Color(ansiSlot(RolePrimary, dark)),
-			accent:  lipgloss.Color(ansiSlot(RoleAccent, dark)),
-			hint:    lipgloss.Color(ansiSlot(RoleHint, dark)),
-			success: lipgloss.Color(ansiSlot(RoleSuccess, dark)),
-			error:   lipgloss.Color(ansiSlot(RoleError, dark)),
-			warn:    lipgloss.Color(ansiSlot(RoleWarn, dark)),
-			info:    lipgloss.Color(ansiSlot(RoleInfo, dark)),
+			primary: lipgloss.Color(ansiSlot(ansiPrimary, dark)),
+			accent:  lipgloss.Color(ansiSlot(ansiAccent, dark)),
+			hint:    lipgloss.Color(ansiSlot(ansiHint, dark)),
+			success: lipgloss.Color(ansiSlot(ansiSuccess, dark)),
+			error:   lipgloss.Color(ansiSlot(ansiError, dark)),
+			warn:    lipgloss.Color(ansiSlot(ansiWarn, dark)),
+			info:    lipgloss.Color(ansiSlot(ansiInfo, dark)),
 		}
 	case ProfileNone, ProfileASCII:
 		// Neither profile can show color, so the styles stay uncolored. Giving
@@ -214,47 +187,35 @@ func resolveColors(p Palette, dark bool, profile Profile) roleColors {
 	}
 }
 
-// ansiSlot returns the basic ANSI color index for a role.
-func ansiSlot(role Role, dark bool) string {
-	if dark {
-		switch role {
-		case RolePrimary:
-			return "14" // bright cyan
-		case RoleAccent:
-			return "12" // bright blue
-		case RoleHint:
-			return "8" // gray
-		case RoleSuccess:
-			return "10" // bright green
-		case RoleError:
-			return "9" // bright red
-		case RoleWarn:
-			return "11" // bright yellow
-		case RoleInfo:
-			return "13" // bright magenta
-		default:
-			return "7"
-		}
-	}
+// ansiRole is the private role vocabulary used to pick a basic ANSI slot. The
+// public surface exposes the prebuilt styles instead, so no caller can ask for
+// a slot that does not exist.
+type ansiRole int
 
-	switch role {
-	case RolePrimary:
-		return "6" // cyan
-	case RoleAccent:
-		return "4" // blue
-	case RoleHint:
-		return "8" // gray
-	case RoleSuccess:
-		return "2" // green
-	case RoleError:
-		return "1" // red
-	case RoleWarn:
-		return "3" // yellow
-	case RoleInfo:
-		return "5" // magenta
-	default:
-		return "7"
+const (
+	ansiPrimary ansiRole = iota
+	ansiAccent
+	ansiHint
+	ansiSuccess
+	ansiError
+	ansiWarn
+	ansiInfo
+)
+
+// Basic ANSI slots per role. Dark terminals use the bright variants; light
+// terminals use the regular ones, which keeps warning distinguishable from
+// error on both.
+var (
+	darkANSI  = [...]string{"14", "12", "8", "10", "9", "11", "13"}
+	lightANSI = [...]string{"6", "4", "8", "2", "1", "3", "5"}
+)
+
+// ansiSlot returns the basic ANSI color index for a role.
+func ansiSlot(role ansiRole, dark bool) string {
+	if dark {
+		return darkANSI[role]
 	}
+	return lightANSI[role]
 }
 
 func buildStyles(c roleColors) Styles {
@@ -324,30 +285,6 @@ func (t *Theme) InfoStyle() lipgloss.Style { return t.styles.Info }
 // NoneStyle returns the plain style.
 func (t *Theme) NoneStyle() lipgloss.Style { return t.styles.None }
 
-// Style returns the style for role. Unknown roles render plain.
-func (t *Theme) Style(role Role) lipgloss.Style {
-	switch role {
-	case RolePrimary:
-		return t.styles.Primary
-	case RoleAccent:
-		return t.styles.Accent
-	case RoleHint:
-		return t.styles.Hint
-	case RoleStrong:
-		return t.styles.Strong
-	case RoleSuccess:
-		return t.styles.Success
-	case RoleError:
-		return t.styles.Error
-	case RoleWarn:
-		return t.styles.Warn
-	case RoleInfo:
-		return t.styles.Info
-	default:
-		return t.styles.None
-	}
-}
-
 // Render applies style and downgrades the result to the theme profile. Use it
 // for every string that reaches a terminal so non-terminal output stays plain.
 func (t *Theme) Render(style lipgloss.Style, text ...string) string {
@@ -369,29 +306,9 @@ func (t *Theme) Success(message string) string {
 	return t.render(t.styles.Success, t.symbols.Success+" "+message)
 }
 
-// SuccessHint renders a success symbol with a muted message.
-func (t *Theme) SuccessHint(message string) string {
-	return t.statusHint(t.styles.Success, t.symbols.Success, message)
-}
-
-// SuccessNone renders a success symbol with an uncolored message.
-func (t *Theme) SuccessNone(message string) string {
-	return t.statusNone(t.styles.Success, t.symbols.Success, message)
-}
-
 // Error renders an error line: symbol and message in the error color.
 func (t *Theme) Error(message string) string {
 	return t.render(t.styles.Error, t.symbols.Error+" "+message)
-}
-
-// ErrorHint renders an error symbol with a muted message.
-func (t *Theme) ErrorHint(message string) string {
-	return t.statusHint(t.styles.Error, t.symbols.Error, message)
-}
-
-// ErrorNone renders an error symbol with an uncolored message.
-func (t *Theme) ErrorNone(message string) string {
-	return t.statusNone(t.styles.Error, t.symbols.Error, message)
 }
 
 // Warn renders a warning line: symbol and message in the warning color.
@@ -399,35 +316,7 @@ func (t *Theme) Warn(message string) string {
 	return t.render(t.styles.Warn, t.symbols.Warn+" "+message)
 }
 
-// WarnHint renders a warning symbol with a muted message.
-func (t *Theme) WarnHint(message string) string {
-	return t.statusHint(t.styles.Warn, t.symbols.Warn, message)
-}
-
-// WarnNone renders a warning symbol with an uncolored message.
-func (t *Theme) WarnNone(message string) string {
-	return t.statusNone(t.styles.Warn, t.symbols.Warn, message)
-}
-
 // Info renders an info line: symbol and message in the info color.
 func (t *Theme) Info(message string) string {
 	return t.render(t.styles.Info, t.symbols.Info+" "+message)
-}
-
-// InfoHint renders an info symbol with a muted message.
-func (t *Theme) InfoHint(message string) string {
-	return t.statusHint(t.styles.Info, t.symbols.Info, message)
-}
-
-// InfoNone renders an info symbol with an uncolored message.
-func (t *Theme) InfoNone(message string) string {
-	return t.statusNone(t.styles.Info, t.symbols.Info, message)
-}
-
-func (t *Theme) statusHint(style lipgloss.Style, symbol, message string) string {
-	return t.render(style, symbol) + " " + t.render(t.styles.Hint, message)
-}
-
-func (t *Theme) statusNone(style lipgloss.Style, symbol, message string) string {
-	return t.render(style, symbol) + " " + message
 }

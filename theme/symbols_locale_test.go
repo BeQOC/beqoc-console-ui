@@ -111,8 +111,8 @@ func TestRenderUsesASCIISymbolsOutsideUTF8(t *testing.T) {
 		{name: "error", got: consoleTheme.Error("failed"), want: "x failed"},
 		{name: "warn", got: consoleTheme.Warn("careful"), want: "! careful"},
 		{name: "info", got: consoleTheme.Info("note"), want: "i note"},
-		{name: "success hint", got: consoleTheme.SuccessHint("wrote 3 files"), want: "+ wrote 3 files"},
-		{name: "error none", got: consoleTheme.ErrorNone("plain"), want: "x plain"},
+		{name: "title", got: consoleTheme.Title("BeQOC"), want: "BeQOC"},
+		{name: "italic", got: consoleTheme.Italic("note"), want: "note"},
 	}
 	for _, testCase := range cases {
 		if testCase.got != testCase.want {

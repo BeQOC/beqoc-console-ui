@@ -14,9 +14,24 @@ func ExampleNew() {
 
 	fmt.Println(theme.Title("BeQOC"))
 	fmt.Println(theme.Success("configuration valid"))
-	fmt.Println(theme.WarnHint("3 files skipped"))
+	fmt.Println(theme.Warn("3 files skipped"))
 	// Output:
 	// BeQOC
 	// ✔ configuration valid
 	// ! 3 files skipped
+}
+
+func ExampleParseProfile() {
+	for _, name := range []string{"ansi256", "ANSI256", "auto"} {
+		profile, err := consoleui.ParseProfile(name)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		fmt.Println(profile)
+	}
+	// Output:
+	// ansi256
+	// ansi256
+	// auto
 }

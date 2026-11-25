@@ -28,7 +28,7 @@ func colorProfile(profile theme.Profile) colorprofile.Profile {
 	}
 }
 
-// HuhTheme adapts a consoleui theme to huh. The consoleui theme already
+// huhTheme adapts a consoleui theme to huh. The consoleui theme already
 // resolved its light or dark variant, so huh's own background flag is ignored
 // on purpose: prompts always agree with the surrounding output.
 //
@@ -36,7 +36,7 @@ func colorProfile(profile theme.Profile) colorprofile.Profile {
 // at all, ProfileASCII keeps attributes but no color, and the smaller color
 // profiles receive colors converted to their own palette instead of 24-bit
 // values.
-func HuhTheme(consoleTheme *theme.Theme) huh.Theme {
+func huhTheme(consoleTheme *theme.Theme) huh.Theme {
 	if consoleTheme == nil {
 		consoleTheme = theme.New()
 	}

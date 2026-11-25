@@ -13,16 +13,19 @@ underlying libraries.
   for the roles `primary`, `accent`, `hint`, `strong`, `success`, `error`,
   `warn`, `info` and `none`. The theme is its own domain; the root package is
   the facade existing callers already use.
-- Status helpers for the `✔`, `✗`, `i` and `!` markers, plus `Hint` and `None`
-  message variants for each status.
+- Status helpers for the `✔`, `✗`, `!` and `i` markers, with a symbol set that
+  falls back to plain ASCII when the process locale is not UTF-8 (`LC_ALL`,
+  `LC_CTYPE` or `LANG`; an unset locale counts as UTF-8).
 - One palette with a light and a dark value per role. Colors are picked with
   `lipgloss.LightDark` and degrade for truecolor, 256-color, 16-color and
   no-color output.
 - A spinner that animates one line and replaces it with a final status line.
-- A prompt wrapper for confirm, select and input questions, styled with the same
-  theme and returning plain Go values.
+- Prompts for confirm, select, multi-select and input questions, styled with the
+  same theme, returning plain Go values and stable sentinel errors.
 - Deterministic rendering: pass `consoleui.WithProfile(...)` and the output is
   stable, with no terminal query and no environment guesswork.
+- Profile parsing (`ParseProfile`, `Profiles`) so configuration files and the
+  command line share one vocabulary.
 
 ## What it is not
 
@@ -66,19 +69,14 @@ func main() {
 
 	fmt.Println(theme.Title("BeQOC"))
 	fmt.Println(theme.Success("configuration valid"))
-	fmt.Println(theme.WarnHint("3 files skipped"))
+	fmt.Println(theme.Warn("3 files skipped"))
 	fmt.Println(theme.Render(theme.AccentStyle(), "next: run the quality gate"))
 }
 ```
 
 `theme.Success`, `theme.Error`, `theme.Warn` and `theme.Info` color the marker
-and the message. The `Hint` variants keep the marker colored and mute the
-message; the `None` variants leave the message uncolored:
-
-```go
-fmt.Println(theme.SuccessHint("wrote 3 files"))
-fmt.Println(theme.ErrorNone("command failed"))
-```
+and the message. `theme.Title` and `theme.Italic` render attributes without a
+color role.
 
 Symbols are configurable:
 
@@ -91,9 +89,11 @@ theme := consoleui.New(consoleui.WithSymbols(consoleui.Symbols{
 }))
 ```
 
-Styles are available through `theme.Styles()`, `theme.Style(role)` and the
-`PrimaryStyle`, `AccentStyle`, and so on accessors for composition with other
-`lipgloss` code.
+Styles are available through `theme.Styles()` and the `PrimaryStyle`,
+`AccentStyle`, `HintStyle`, `StrongStyle`, `SuccessStyle`, `ErrorStyle`,
+`WarnStyle`, `InfoStyle` and `NoneStyle` accessors for composition with other
+`lipgloss` code. `theme.Render` applies a style and downgrades the result to the
+theme profile, which is the supported way to emit styled text.
 
 ## Color profiles
 
@@ -105,11 +105,23 @@ deterministic, choose a profile explicitly:
 theme := consoleui.New(consoleui.WithProfile(consoleui.ProfileANSI256))
 ```
 
+Names resolve through the same parser the DevTools configuration uses:
+
+```go
+profile, err := consoleui.ParseProfile("ansi256") // case-insensitive, "" means auto
+if err != nil {
+	// errors.Is(err, consoleui.ErrUnknownProfile)
+}
+for _, profile := range consoleui.Profiles() {
+	fmt.Println(profile) // auto, none, ascii, ansi, ansi256, truecolor
+}
+```
+
 | Profile | Behavior |
 | --- | --- |
-| `ProfileAuto` | Detect from the output stream; `NO_COLOR` disables styling. |
+| `ProfileAuto` | Detect from the output stream; `NO_COLOR` renders as `ProfileNone`. |
 | `ProfileNone` | No escape sequences at all. |
-| `ProfileASCII` | Text attributes such as bold; no color. |
+| `ProfileASCII` | Text attributes such as bold or italic; no color and no empty SGR. |
 | `ProfileANSI` | The 16 basic colors, mapped semantically per role. |
 | `ProfileANSI256` | The 256-color palette. |
 | `ProfileTrueColor` | 24-bit colors. |
@@ -168,6 +180,24 @@ usable from plain commands and does not take over standard input. When the
 writer is not a terminal (or `TERM=dumb`), it does not animate and only prints
 the final line.
 
+Every frame is truncated to the terminal width read before the draw, so a
+resize is followed on the next frame and a narrow terminal never receives a
+wrapped line. `spinner.WithWidth` fixes the width for deterministic output, and
+`spinner.ASCIIFrames` offers the plain `| / - \` set:
+
+```go
+sp := spinner.New("Working",
+	spinner.WithTheme(theme),
+	spinner.WithFrames(spinner.ASCIIFrames()),
+	spinner.WithWidth(40),
+)
+```
+
+A write error stops the animation and is available from `sp.Err()`. The spinner
+never installs signal handlers: cancellation belongs to the caller. Pass a
+context with `spinner.WithContext` and cancel it from the signal handler you
+own; the spinner clears its line and stops its frame loop.
+
 ## Prompts
 
 ```go
@@ -195,40 +225,68 @@ target, err := prompt.Select(ctx, p, prompt.SelectOptions[string]{
 		{Label: "Remote", Value: "remote"},
 	},
 })
+
+targets, err := prompt.MultiSelect(ctx, p, prompt.MultiSelectOptions[string]{
+	Title: "Targets",
+	Choices: []prompt.Choice[string]{
+		{Label: "Local", Value: "local"},
+		{Label: "Remote", Value: "remote"},
+	},
+	Defaults: []string{"local"},
+})
 ```
 
-`Select` is a function because Go methods cannot declare type parameters.
-Questions return plain values and errors; callers own retries and decisions.
+`Select` and `MultiSelect` are functions because Go methods cannot declare type
+parameters. Questions return plain values and errors; callers own retries and
+decisions. Multi-select returns the selected values in the order of the choices
+and never repeats one.
 
-Pass `Accessible: true` together with `Input` and `Output` to use huh's
-line-oriented mode. It needs no terminal and is the supported way to drive
-prompts from scripts and tests. `prompt.HuhTheme` exposes the same styling as a
-regular `huh.Theme` for callers that compose their own forms.
+On a terminal the form library draws the prompts. When `Input` or `Output` is
+not a terminal the package switches to its own line reader, so scripts and tests
+need no extra flag; `Accessible: true` forces that mode anywhere. In line mode
+`MultiSelect` understands a number or a value to toggle, `?text` to search and
+`done` to finish.
+
+Errors are stable sentinels: `prompt.ErrCanceled` (Ctrl-C, SIGINT, SIGTERM, a
+closed terminal or a canceled context, which also matches
+`context.Canceled`/`context.DeadlineExceeded`), `prompt.ErrEOF` (a closed input
+or Ctrl-D; it wraps `io.EOF`), `prompt.ErrNoChoices` and
+`prompt.ErrInvalidDefault`.
+
+While a prompt is open on a real terminal it intercepts `SIGINT` and `SIGTERM`
+(only `os.Interrupt` on Windows) and removes the handler when the prompt
+returns. A signal, or Ctrl-C read as a key, ends the form with
+`prompt.ErrCanceled`, so the library never terminates the process by itself:
+what a signal means outside a prompt is the owner's decision. The line reader
+used for pipes and scripts installs no handler.
 
 ## Project structure
 
 | Path | Package | Purpose |
 | --- | --- | --- |
-| `consoleui.go`, `doc.go` | `consoleui` | Stable facade: `New`, options and theme re-exports. |
-| `theme/` | `theme` | Roles, palette, profiles and symbols. Imports nothing internal. |
+| `consoleui.go`, `doc.go` | `consoleui` | Stable facade: `New`, options, profile parsing and theme re-exports. |
+| `theme/` | `theme` | Palettes, profiles, styles and symbols. Imports nothing internal. |
 | `spinner/` | `spinner` | Print-style progress line over the theme domain. |
 | `prompt/` | `prompt` | Themed huh forms over the theme domain. |
 
 The domains are independently importable, for example
-`github.com/BeQOC/beqoc-console-ui/theme`. The root facade imports all three
-domains; the domains do not import the facade, so there is no cycle. The facade
-re-exports the theme surface with type aliases, so a `*consoleui.Theme` is the
-same type the spinner and prompt domains accept. It also names the `Spinner`
-and `Prompter` types; their constructors and options stay in their domains.
+`github.com/BeQOC/beqoc-console-ui/theme`. The root facade imports only the theme
+domain, so a caller that imports it for the theme does not build the form
+library or a terminal UI; a test enforces that boundary. The facade re-exports
+the theme surface with type aliases, so a `*consoleui.Theme` is the same type
+the spinner and prompt domains accept.
 
 ## Dependencies
 
 The dependency set is intentionally small and pinned in `go.mod`:
 
-- `charm.land/lipgloss/v2` — styling and color rendering.
+- `charm.land/lipgloss/v2` — styling and color rendering (theme, root).
 - `github.com/charmbracelet/colorprofile` — profile detection and downgrading.
-- `charm.land/huh/v2` — prompt forms (brings Bubble Tea and Bubbles).
-- `github.com/charmbracelet/x/term` — terminal detection for the spinner.
+- `github.com/charmbracelet/x/ansi` — visual-width truncation for the spinner.
+- `github.com/charmbracelet/x/term` — terminal detection.
+- `charm.land/huh/v2` — prompt forms (brings Bubble Tea and Bubbles), used only
+  by the `prompt` domain.
+- `github.com/creack/pty` — real pseudo-terminals in tests only.
 
 Nothing is vendored.
 
